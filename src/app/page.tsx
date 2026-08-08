@@ -94,13 +94,20 @@ const INDUSTRIES = [
   { label: "Fitness & Wellness", icon: "🏋️" },
 ];
 
+const POST_TYPE_STYLE: Record<string, string> = {
+  Offer: "bg-orange-light text-orange",
+  Update: "bg-blue-soft/15 text-blue-soft-dark",
+  Event: "bg-emerald-100 text-emerald-700",
+  Story: "bg-rose-100 text-rose-600",
+};
+
 const PRO_TOOLS = [
-  { id: "description", name: "Description Writer", description: "AI-optimized Google Business Profile description with local SEO keywords", icon: FileText },
-  { id: "nap", name: "NAP Checker", description: "Verify Name, Address, Phone consistency across 50+ directories", icon: MapPin },
-  { id: "keywords", name: "Keyword Finder", description: "Discover what your customers actually search for in your area", icon: KeyRound },
-  { id: "qa", name: "Q&A Generator", description: "Generate common customer questions and AI-optimized answers", icon: HelpCircle },
-  { id: "posts", name: "Post Generator", description: "AI-generated weekly posts tailored to your business and local events", icon: Sparkles },
-  { id: "photos", name: "Photo Strategy", description: "AI recommendations on what photos to add and why they matter", icon: ImageIcon },
+  { id: "description", name: "Description Writer", description: "AI-optimized Google Business Profile description with local SEO keywords", icon: FileText, iconBg: "bg-orange-light", iconColor: "text-orange" },
+  { id: "nap", name: "NAP Checker", description: "Verify Name, Address, Phone consistency across 50+ directories", icon: MapPin, iconBg: "bg-blue-soft/15", iconColor: "text-blue-soft-dark" },
+  { id: "keywords", name: "Keyword Finder", description: "Discover what your customers actually search for in your area", icon: KeyRound, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+  { id: "qa", name: "Q&A Generator", description: "Generate common customer questions and AI-optimized answers", icon: HelpCircle, iconBg: "bg-rose-50", iconColor: "text-rose-500" },
+  { id: "posts", name: "Post Generator", description: "AI-generated weekly posts tailored to your business and local events", icon: Sparkles, iconBg: "bg-violet-50", iconColor: "text-violet-500" },
+  { id: "photos", name: "Photo Strategy", description: "AI recommendations on what photos to add and why they matter", icon: ImageIcon, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
 ];
 
 /* ================================================================
@@ -139,6 +146,7 @@ export default function SpotRisePage() {
   /* UI */
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "posts" | "competitors" | "tools">("overview");
   const [copiedPost, setCopiedPost] = useState<number | null>(null);
+  const [copiedReview, setCopiedReview] = useState<number | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   /* Derived */
@@ -218,11 +226,17 @@ export default function SpotRisePage() {
     setTimeout(() => setCopiedPost(null), 2000);
   };
 
-  const getScoreColor = (s: number) => { if (s >= 80) return "text-emerald-400"; if (s >= 60) return "text-amber-400"; return "text-red-400"; };
+  const copyReviewReply = (id: number, reply: string) => {
+    navigator.clipboard.writeText(reply);
+    setCopiedReview(id);
+    setTimeout(() => setCopiedReview(null), 2000);
+  };
+
+  const getScoreColor = (s: number) => { if (s >= 80) return "text-emerald-600"; if (s >= 60) return "text-amber-500"; return "text-red-500"; };
   const getPriorityColor = (p: string) => {
-    if (p === "high") return "bg-red-500/20 text-red-400 border-red-500/30";
-    if (p === "medium") return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-    return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    if (p === "high") return "bg-red-100 text-red-600 border-red-200";
+    if (p === "medium") return "bg-amber-100 text-amber-700 border-amber-200";
+    return "bg-blue-100 text-blue-700 border-blue-200";
   };
 
   /* ================================================================
@@ -248,7 +262,7 @@ export default function SpotRisePage() {
                 </>
               ) : (
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
                     {userState === "pro" ? "Pro Plan" : "Free Plan"}
                   </span>
                   {userState !== "pro" && (
@@ -535,7 +549,7 @@ export default function SpotRisePage() {
               <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white hover:bg-cream-dark transition-colors">Sign In</button>
             ) : (
               <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
                   {userState === "pro" ? "Pro Plan" : "Free Plan"}
                 </span>
                 {userState !== "pro" && (
@@ -569,14 +583,14 @@ export default function SpotRisePage() {
         {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Consolidated Insights Card */}
-            <div className="rounded-2xl bg-gradient-to-br from-white to-cream border border-border-warm overflow-hidden">
+            <div className="rounded-2xl bg-white border border-border-warm shadow-sm overflow-hidden">
               <div className="p-6 sm:p-8">
                 <div className="flex flex-col lg:flex-row gap-8">
                   {/* Score Gauge */}
                   <div className="flex flex-col items-center justify-center shrink-0">
                     <div className="relative w-40 h-40">
                       <svg className="w-40 h-40 -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#E8DFD1" strokeWidth="8" />
                         <circle cx="50" cy="50" r="42" fill="none" stroke="url(#scoreGradient)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(score / 100) * 264} 264`} />
                         <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
                       </svg>
@@ -586,7 +600,7 @@ export default function SpotRisePage() {
                       </div>
                     </div>
                     <div className="mt-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${score >= 60 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${score >= 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-600"}`}>
                         <AlertCircle className="w-3 h-3" />Needs Improvement
                       </span>
                     </div>
@@ -606,7 +620,7 @@ export default function SpotRisePage() {
                           <div className="flex items-center gap-1.5 mb-2"><stat.icon className="w-3.5 h-3.5 text-gray-warm" /><span className="text-xs text-gray-warm">{stat.label}</span></div>
                           <div className="flex items-end gap-2">
                             <span className="text-xl font-bold">{stat.value}</span>
-                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-400" : stat.neutral ? "text-gray-warm" : "text-emerald-400"}`}>{stat.change}</span>
+                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-500" : stat.neutral ? "text-gray-warm" : "text-emerald-600"}`}>{stat.change}</span>
                           </div>
                         </div>
                       ))}
@@ -636,13 +650,13 @@ export default function SpotRisePage() {
                 </div>
                 <div className="space-y-3">
                   {MOCK_ACTION_ITEMS.map((item) => (
-                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-cream border border-border-warm hover:border-border-warm transition-colors">
+                    <div key={item.id} className={`flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-cream border-l-4 ${item.priority === "high" ? "border-l-red-400" : item.priority === "medium" ? "border-l-amber-400" : "border-l-blue-400"} border-y border-r border-border-warm`}>
                       <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm">{item.title}</h4>
                         <p className="text-sm text-gray-warm mt-1 leading-relaxed">{item.description}</p>
                       </div>
-                      <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                      <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-medium">
                         <TrendingUp className="w-3 h-3" />{item.impact}
                       </div>
                     </div>
@@ -652,18 +666,18 @@ export default function SpotRisePage() {
             </div>
 
             {/* Weekly Pulse */}
-            <div className="rounded-2xl bg-cream border border-border-warm p-6">
+            <div className="rounded-2xl bg-blue-soft/10 border border-blue-soft/25 p-6">
               <div className="flex items-center gap-2 mb-5">
-                <RefreshCw className="w-5 h-5 text-orange" />
+                <RefreshCw className="w-5 h-5 text-blue-soft-dark" />
                 <h3 className="font-semibold">Weekly Pulse</h3>
                 <span className="text-xs text-gray-warm ml-auto">vs last week</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 {MOCK_WEEKLY_CHANGES.map((change, i) => (
-                  <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm">
+                  <div key={i} className="p-4 rounded-xl bg-white border border-border-warm shadow-sm">
                     <div className="text-xs text-gray-warm mb-2">{change.metric}</div>
                     <div className="flex items-end gap-2"><span className="text-2xl font-bold">{change.current}{change.unit}</span></div>
-                    <div className={`flex items-center gap-1 mt-2 text-xs ${change.change > 0 ? "text-emerald-400" : change.change < 0 ? "text-red-400" : "text-gray-warm"}`}>
+                    <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${change.change > 0 ? "text-emerald-600" : change.change < 0 ? "text-red-500" : "text-gray-warm"}`}>
                       {change.change > 0 ? <TrendingUp className="w-3 h-3" /> : change.change < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
                       {change.change > 0 ? "+" : ""}{change.change}%
                     </div>
@@ -674,15 +688,14 @@ export default function SpotRisePage() {
 
             {/* Locked Competitor Teaser */}
             {userState !== "pro" && (
-              <div className="rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 p-6 relative overflow-hidden">
-                <div className="absolute inset-0 backdrop-blur-[1px]" />
-                <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center"><Target className="w-6 h-6 text-amber-400" /></div>
+              <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-orange-light flex items-center justify-center shrink-0"><Target className="w-6 h-6 text-orange" /></div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-amber-400">Competitor Intelligence</h3>
+                    <h3 className="font-semibold text-charcoal">Competitor Intelligence</h3>
                     <p className="text-sm text-gray-warm mt-1">Add up to 3 competitors and see gap analysis, opportunities, and where you're losing customers.</p>
                   </div>
-                  <button onClick={() => setShowUpgrade(true)} className="shrink-0 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/30 transition-colors flex items-center gap-2">
+                  <button onClick={() => setShowUpgrade(true)} className="shrink-0 px-4 py-2 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors flex items-center gap-2">
                     <Lock className="w-4 h-4" />Unlock with Pro
                   </button>
                 </div>
@@ -710,7 +723,7 @@ export default function SpotRisePage() {
             </div>
             <div className="space-y-4">
               {(userState === "anonymous" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
-                <div key={review.id} className="rounded-2xl bg-cream border border-border-warm p-5 hover:border-border-warm transition-colors">
+                <div key={review.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-orange-light flex items-center justify-center text-sm font-bold text-orange">{review.author[0]}</div>
@@ -719,25 +732,27 @@ export default function SpotRisePage() {
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex gap-0.5">
                             {[...Array(5)].map((_, i) => (
-                              <Star key={i} className={`w-3 h-3 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-charcoal/10"}`} />
+                              <Star key={i} className={`w-3 h-3 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-border-warm"}`} />
                             ))}
                           </div>
                           <span className="text-xs text-gray-warm">{review.date}</span>
                         </div>
                       </div>
                     </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-medium ${review.sentiment === "positive" ? "bg-emerald-500/10 text-emerald-400" : review.sentiment === "negative" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"}`}>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-medium ${review.sentiment === "positive" ? "bg-emerald-100 text-emerald-700" : review.sentiment === "negative" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-700"}`}>
                       {review.sentiment}
                     </span>
                   </div>
                   <p className="text-sm text-gray-warm mt-3 leading-relaxed">{review.text}</p>
                   {userState !== "anonymous" && review.aiReply && (
-                    <div className="mt-4 p-4 rounded-xl bg-orange-light border border-orange/20">
-                      <div className="flex items-center gap-2 mb-2"><Sparkles className="w-3.5 h-3.5 text-orange" /><span className="text-xs font-medium text-orange">AI-Suggested Reply</span></div>
+                    <div className="mt-4 p-4 rounded-xl bg-blue-soft/10 border border-blue-soft/25">
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="w-3.5 h-3.5 text-blue-soft-dark" /><span className="text-xs font-medium text-blue-soft-dark">AI-Suggested Reply</span></div>
                       <p className="text-sm text-gray-warm leading-relaxed">{review.aiReply}</p>
                       <div className="flex gap-2 mt-3">
-                        <button className="px-3 py-1.5 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors">Use This Reply</button>
-                        <button className="px-3 py-1.5 rounded-lg bg-cream text-gray-warm text-xs hover:bg-white transition-colors">Regenerate</button>
+                        <button onClick={() => copyReviewReply(review.id, review.aiReply!)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange text-white text-xs font-medium hover:bg-orange-hover transition-colors">
+                          {copiedReview === review.id ? (<><CheckCircle2 className="w-3.5 h-3.5" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy This Reply</>)}
+                        </button>
+                        <button className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-gray-warm text-xs hover:bg-cream transition-colors">Regenerate</button>
                       </div>
                     </div>
                   )}
@@ -745,8 +760,8 @@ export default function SpotRisePage() {
               ))}
             </div>
             {userState === "anonymous" && filteredReviews.length > 1 && (
-              <div className="rounded-2xl bg-cream border border-border-warm p-8 text-center">
-                <Lock className="w-8 h-8 text-charcoal/20 mx-auto mb-3" />
+              <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
+                <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
                 <p className="text-sm text-gray-warm">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all reviews and AI replies.</p>
               </div>
             )}
@@ -764,24 +779,24 @@ export default function SpotRisePage() {
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               {(userState === "anonymous" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
-                <div key={post.id} className="rounded-2xl bg-cream border border-border-warm p-5 hover:border-border-warm transition-colors">
+                <div key={post.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="px-2 py-0.5 rounded-md bg-cream text-[10px] font-medium text-gray-warm">{post.type}</span>
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${POST_TYPE_STYLE[post.type] || "bg-cream text-gray-warm"}`}>{post.type}</span>
                     <span className="text-xs text-gray-warm">{post.date}</span>
                   </div>
                   <h3 className="font-medium mb-2">{post.title}</h3>
                   <p className="text-sm text-gray-warm leading-relaxed mb-4">{post.content}</p>
                   {userState !== "anonymous" && (
-                    <button onClick={() => copyPost(post.id, post.content)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cream text-xs text-gray-warm hover:bg-white transition-colors">
-                      {copiedPost === post.id ? (<><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy to GBP</>)}
+                    <button onClick={() => copyPost(post.id, post.content)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cream border border-border-warm text-xs text-charcoal hover:bg-cream-dark transition-colors">
+                      {copiedPost === post.id ? (<><CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy to GBP</>)}
                     </button>
                   )}
                 </div>
               ))}
             </div>
             {userState === "anonymous" && MOCK_POSTS.length > 1 && (
-              <div className="rounded-2xl bg-cream border border-border-warm p-8 text-center">
-                <Lock className="w-8 h-8 text-charcoal/20 mx-auto mb-3" />
+              <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
+                <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
                 <p className="text-sm text-gray-warm">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all weekly posts.</p>
               </div>
             )}
@@ -797,43 +812,43 @@ export default function SpotRisePage() {
                 <p className="text-sm text-gray-warm mt-1">{userState === "pro" ? `Track ${competitors.length} of 3 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
               </div>
               {userState === "pro" && competitors.length < 3 && (
-                <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-light text-orange text-sm font-medium hover:bg-orange/20 transition-colors">
+                <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">
                   <Plus className="w-4 h-4" />Add Competitor
                 </button>
               )}
             </div>
 
             {userState !== "pro" ? (
-              <div className="rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 p-12 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-amber-400" /></div>
+              <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-orange-light flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-orange" /></div>
                 <h3 className="text-lg font-semibold mb-2">Competitor Analysis Locked</h3>
                 <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">See how you stack up against competitors. Discover gaps, opportunities, and exactly where you're losing customers.</p>
                 <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-6">
                   {["Side-by-side score comparison", "Review & rating gap analysis", "Opportunity recommendations"].map((item, i) => (
                     <div key={i} className="p-3 rounded-xl bg-cream border border-border-warm text-xs text-gray-warm flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />{item}
+                      <CheckCircle2 className="w-3.5 h-3.5 text-orange shrink-0" />{item}
                     </div>
                   ))}
                 </div>
                 <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
               </div>
             ) : competitors.length === 0 ? (
-              <div className="rounded-2xl bg-cream border border-border-warm p-12 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-charcoal/20" /></div>
+              <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-gray-warm/50" /></div>
                 <h3 className="text-lg font-semibold mb-2">No Competitors Added</h3>
                 <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">Add up to 3 competitors to see gap analysis and opportunities.</p>
-                <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-orange-light text-orange text-sm font-medium hover:bg-orange/20 transition-colors flex items-center gap-2 mx-auto">
+                <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors flex items-center gap-2 mx-auto">
                   <Plus className="w-4 h-4" />Add Your First Competitor
                 </button>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* Comparison Table */}
-                <div className="rounded-2xl bg-cream border border-border-warm overflow-hidden">
+                <div className="rounded-2xl bg-white border border-border-warm shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-border-warm">
+                        <tr className="border-b border-border-warm bg-cream">
                           <th className="text-left p-4 text-gray-warm font-medium">Metric</th>
                           <th className="text-center p-4 text-gray-warm font-medium">You</th>
                           {competitors.map((c) => (
@@ -857,11 +872,11 @@ export default function SpotRisePage() {
                             {competitors.map((c) => (
                               <td key={c.id} className="p-4 text-center">
                                 <span className={`font-medium ${
-                                  row.key === "score" ? (c.score > score ? "text-red-400" : "text-emerald-400") :
-                                  row.key === "reviews" ? (c.reviews > 142 ? "text-red-400" : "text-emerald-400") :
-                                  row.key === "rating" ? (c.rating > 4.2 ? "text-red-400" : "text-emerald-400") :
-                                  row.key === "photos" ? (c.photos > 12 ? "text-red-400" : "text-emerald-400") :
-                                  (c.responseRate > 23 ? "text-red-400" : "text-emerald-400")
+                                  row.key === "score" ? (c.score > score ? "text-red-500" : "text-emerald-600") :
+                                  row.key === "reviews" ? (c.reviews > 142 ? "text-red-500" : "text-emerald-600") :
+                                  row.key === "rating" ? (c.rating > 4.2 ? "text-red-500" : "text-emerald-600") :
+                                  row.key === "photos" ? (c.photos > 12 ? "text-red-500" : "text-emerald-600") :
+                                  (c.responseRate > 23 ? "text-red-500" : "text-emerald-600")
                                 }`}>
                                   {c[row.key as keyof Competitor]}{row.unit}
                                 </span>
@@ -875,30 +890,30 @@ export default function SpotRisePage() {
                 </div>
 
                 {/* Gap Analysis */}
-                <div className="rounded-2xl bg-cream border border-border-warm p-6">
+                <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-6">
                   <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-orange" />Gap Analysis & Opportunities</h3>
                   <div className="space-y-3">
                     {competitors.map((comp) => (
                       <div key={comp.id} className="p-4 rounded-xl bg-cream border border-border-warm">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">{comp.name}</span>
-                          <button onClick={() => removeCompetitor(comp.id)} className="text-charcoal/20 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => removeCompetitor(comp.id)} className="text-gray-warm/50 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
                         {comp.reviews > 142 && (
                           <div className="flex items-start gap-2 text-sm text-gray-warm">
-                            <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <TrendingDown className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                             <span>They have <strong className="text-charcoal">{comp.reviews - 142} more reviews</strong> than you. Focus on review generation campaigns.</span>
                           </div>
                         )}
                         {comp.photos > 12 && (
                           <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
-                            <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <TrendingDown className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                             <span>They have <strong className="text-charcoal">{comp.photos - 12} more photos</strong>. Add interior, menu, and team photos.</span>
                           </div>
                         )}
                         {comp.score < score && (
                           <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
-                            <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                             <span>Your audit score is <strong className="text-charcoal">{score - comp.score} points higher</strong>. You're ahead on profile optimization!</span>
                           </div>
                         )}
@@ -926,21 +941,21 @@ export default function SpotRisePage() {
                 const isLocked = userState !== "pro";
                 return (
                   <div key={tool.id} className={`rounded-2xl border p-5 relative overflow-hidden transition-all ${
-                    isLocked ? "bg-cream border-border-warm" : "bg-cream border-border-warm hover:border-orange/30"
+                    isLocked ? "bg-white border-border-warm shadow-sm" : "bg-white border-border-warm shadow-sm hover:border-orange/30 hover:shadow-md"
                   }`}>
                     {isLocked && (
-                      <div className="absolute inset-0 backdrop-blur-[2px] bg-cream-dark/60 flex flex-col items-center justify-center z-10">
+                      <div className="absolute inset-0 backdrop-blur-[2px] bg-white/70 flex flex-col items-center justify-center z-10">
                         <Lock className="w-6 h-6 text-gray-warm mb-2" />
-                        <span className="text-xs text-gray-warm">Pro Only</span>
+                        <span className="text-xs text-gray-warm font-medium">Pro Only</span>
                       </div>
                     )}
                     <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked ? "bg-cream" : "bg-orange-light"}`}>
-                        <Icon className={`w-5 h-5 ${isLocked ? "text-charcoal/20" : "text-orange"}`} />
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked ? "bg-cream" : tool.iconBg}`}>
+                        <Icon className={`w-5 h-5 ${isLocked ? "text-gray-warm/40" : tool.iconColor}`} />
                       </div>
                       <div className="min-w-0">
                         <h3 className={`font-medium text-sm ${isLocked ? "text-gray-warm" : "text-charcoal"}`}>{tool.name}</h3>
-                        <p className={`text-xs mt-1 leading-relaxed ${isLocked ? "text-charcoal/20" : "text-gray-warm"}`}>{tool.description}</p>
+                        <p className={`text-xs mt-1 leading-relaxed ${isLocked ? "text-gray-warm/60" : "text-gray-warm"}`}>{tool.description}</p>
                       </div>
                     </div>
                     {!isLocked && (
