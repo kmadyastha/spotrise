@@ -83,7 +83,16 @@ const FAQS = [
   { q: "Can I cancel anytime?", a: "Absolutely. No contracts, no setup fees. Upgrade or downgrade whenever you want." },
 ];
 
-const INDUSTRIES = ["Restaurants", "Home Services", "Automotive", "Medical & Healthcare", "Legal", "Real Estate", "Beauty & Personal Care", "Fitness & Wellness"];
+const INDUSTRIES = [
+  { label: "Restaurants & Cafes", icon: "🍽️" },
+  { label: "Home Services", icon: "🔧" },
+  { label: "Automotive", icon: "🚗" },
+  { label: "Medical & Healthcare", icon: "🩺" },
+  { label: "Legal", icon: "⚖️" },
+  { label: "Real Estate", icon: "🏠" },
+  { label: "Beauty & Personal Care", icon: "💇" },
+  { label: "Fitness & Wellness", icon: "🏋️" },
+];
 
 const PRO_TOOLS = [
   { id: "description", name: "Description Writer", description: "AI-optimized Google Business Profile description with local SEO keywords", icon: FileText },
@@ -255,10 +264,7 @@ export default function SpotRisePage() {
         {/* Hero */}
         <section className="pt-20 pb-12 px-4">
           <div className="max-w-6xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-light border border-orange/30 text-orange text-xs font-medium mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
-              AI-Powered Business Intelligence
-            </div>
+            <p className="text-xs font-semibold tracking-[0.2em] text-orange uppercase mb-6">Built for Owners</p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight max-w-5xl mx-auto leading-tight">
               Turn Your Google Profile Into{" "}
               <span className="text-orange italic">a Customer Magnet</span>
@@ -294,9 +300,9 @@ export default function SpotRisePage() {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-warm">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />No credit card required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />2 free audits</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />Instant results</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-orange" />No credit card required</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-orange" />2 free audits</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-orange" />Instant results</span>
               <button onClick={() => document.getElementById("video-demo")?.scrollIntoView({ behavior: "smooth" })} className="flex items-center gap-1.5 text-orange font-medium hover:text-orange-hover transition-colors">
                 <Play className="w-3.5 h-3.5" />View Demo
               </button>
@@ -307,10 +313,13 @@ export default function SpotRisePage() {
         {/* Industries */}
         <section className="pb-16 px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <p className="text-sm text-gray-warm mb-5">Built specifically for business owners in the following industries.</p>
+            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-charcoal mb-2">Built for Every Kind of Local Business</h2>
+            <p className="text-sm text-gray-warm mb-8">Wherever you are, SpotRise speaks your business's language.</p>
             <div className="flex flex-wrap justify-center gap-3">
               {INDUSTRIES.map((ind) => (
-                <span key={ind} className="px-5 py-2.5 bg-white border border-border-warm rounded-full text-sm text-charcoal hover:border-orange hover:text-orange transition-colors cursor-default">{ind}</span>
+                <span key={ind.label} className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-light border border-orange/20 rounded-full text-sm font-medium text-charcoal hover:border-orange hover:bg-orange/10 transition-colors cursor-default">
+                  <span className="text-base leading-none">{ind.icon}</span>{ind.label}
+                </span>
               ))}
             </div>
           </div>
@@ -358,27 +367,30 @@ export default function SpotRisePage() {
 
         {/* How it works */}
         <section className="py-20 border-t border-border-warm px-4">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="font-serif text-3xl font-bold">How It Works</h2>
               <p className="mt-3 text-gray-warm">From search to insights in 3 steps.</p>
             </div>
-            <div className="space-y-8">
-              {[
-                { step: "01", title: "Search Your Business", desc: "Enter your business name and city. We scan your Google Business Profile instantly." },
-                { step: "02", title: "Get Your AI Audit", desc: "Receive a detailed score, sentiment analysis, and prioritized action items." },
-                { step: "03", title: "Fix & Grow", desc: "Use our Pro Tools to optimize your profile and watch your visibility soar." },
-              ].map((s, i) => (
-                <div key={i} className="flex gap-6 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-orange-light flex items-center justify-center shrink-0 border border-orange/30">
-                    <span className="text-sm font-bold text-orange">{s.step}</span>
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div className="space-y-8">
+                {[
+                  { step: "01", title: "Search Your Business", desc: "Enter your business name and city. We scan your Google Business Profile instantly." },
+                  { step: "02", title: "Get Your AI Audit", desc: "Receive a detailed score, sentiment analysis, and prioritized action items." },
+                  { step: "03", title: "Fix & Grow", desc: "Use our Pro Tools to optimize your profile and watch your visibility soar." },
+                ].map((s, i) => (
+                  <div key={i} className="flex gap-6 items-start">
+                    <div className="w-12 h-12 rounded-xl bg-orange-light flex items-center justify-center shrink-0 border border-orange/30">
+                      <span className="text-sm font-bold text-orange">{s.step}</span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{s.title}</h3>
+                      <p className="text-gray-warm mt-1">{s.desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{s.title}</h3>
-                    <p className="text-gray-warm mt-1">{s.desc}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <HowItWorksMarquee />
             </div>
           </div>
         </section>
@@ -391,18 +403,18 @@ export default function SpotRisePage() {
               <p className="mt-3 text-gray-warm">Start free. Upgrade when you're ready.</p>
             </div>
             <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <div className="p-6 rounded-2xl bg-cream border border-border-warm">
+              <div className="p-6 rounded-2xl bg-white border border-border-warm shadow-sm">
                 <div className="text-sm text-gray-warm font-medium mb-2">Free</div>
                 <div className="text-3xl font-bold mb-1">$0</div>
                 <div className="text-sm text-gray-warm mb-6">Forever free</div>
                 <ul className="space-y-3 mb-6">
                   {["2 full AI audits", "Review sentiment analysis", "Basic action items", "1 business profile"].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />{item}</li>
+                    <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
                   ))}
                 </ul>
-                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-white hover:bg-cream-dark transition-colors text-sm font-medium">Get Started Free</button>
+                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-cream border border-border-warm hover:bg-cream-dark transition-colors text-sm font-medium">Get Started Free</button>
               </div>
-              <div className="p-6 rounded-2xl bg-orange-light border border-orange/30 relative">
+              <div className="p-6 rounded-2xl bg-white border-2 border-orange shadow-md relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white text-xs font-medium">Most Popular</div>
                 <div className="text-sm text-orange font-medium mb-2">Pro</div>
                 <div className="text-3xl font-bold mb-1">$9<span className="text-lg text-gray-warm font-normal">/mo</span></div>
@@ -967,6 +979,45 @@ export default function SpotRisePage() {
 /* ================================================================
    MODAL COMPONENTS
    ================================================================ */
+
+/* ================================================================
+   HOW IT WORKS — image marquee (placeholder screenshots, swap every 3s)
+   Drop the two report screenshots into /public as how-it-works-1.png
+   and how-it-works-2.png — replace with the final audit/report pages
+   once those redesigns are locked.
+   ================================================================ */
+function HowItWorksMarquee() {
+  const slides = [
+    { src: "/how-it-works-1.png", alt: "Audit score overview" },
+    { src: "/how-it-works-2.png", alt: "Review inbox with AI-suggested replies" },
+  ];
+  const [active, setActive] = React.useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => setActive((a) => (a + 1) % slides.length), 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="relative rounded-2xl border border-border-warm bg-white p-3 shadow-sm">
+      <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-cream">
+        {slides.map((s, i) => (
+          <img
+            key={s.src}
+            src={s.src}
+            alt={s.alt}
+            className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-700 ${i === active ? "opacity-100" : "opacity-0"}`}
+          />
+        ))}
+      </div>
+      <div className="flex items-center justify-center gap-2 mt-3">
+        {slides.map((_, i) => (
+          <button key={i} onClick={() => setActive(i)} className={`h-1.5 rounded-full transition-all ${i === active ? "w-6 bg-orange" : "w-1.5 bg-border-warm"}`} aria-label={`Show slide ${i + 1}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Modal({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: React.ReactNode; title?: string }) {
   if (!open) return null;
