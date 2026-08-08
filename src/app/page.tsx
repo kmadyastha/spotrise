@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Search, Star, TrendingUp, TrendingDown, Minus, Lock, Zap, ChevronRight, X, User, Mail,
+  Search, Star, TrendingUp, TrendingDown, Minus, Lock, Zap, ChevronRight, ChevronDown, ChevronUp, X, User, Mail,
   ArrowRight, Play, CheckCircle2, AlertCircle, MessageSquare, Calendar, BarChart3, Target,
   FileText, MapPin, KeyRound, HelpCircle, Image as ImageIcon, Plus, Trash2, Eye, EyeOff,
   RefreshCw, Copy, ThumbsUp, ThumbsDown, Clock, Camera, Phone, Globe, Award, Sparkles, Shield,
@@ -74,6 +74,17 @@ const MOCK_WEEKLY_CHANGES: WeeklyChange[] = [
   { metric: "Photo Count", current: 12, previous: 12, change: 0, unit: "" },
 ];
 
+const FAQS = [
+  { q: "What is SpotRise and how can it help my business?", a: "SpotRise is an AI-powered Google Business Profile optimizer built for local businesses. We audit your profile, draft smart replies to reviews, generate weekly posts, and track your competitors — so you rank higher on Google Maps without hiring an agency." },
+  { q: "Do I need any tech skills?", a: "Not at all. Just enter your business name and city. Our AI handles the rest. Everything is copy-paste ready for your Google Business Profile." },
+  { q: "Will this actually improve my Google ranking?", a: "Yes. Google rewards active, complete profiles with regular posts and prompt review replies. SpotRise automates exactly those signals that push you higher in local search." },
+  { q: "What if I already have a website?", a: "SpotRise complements your website by optimizing your Google Business Profile — the #1 factor for local search visibility. We make sure customers find you on Google Maps first." },
+  { q: "How does the review reply AI work?", a: "Our AI reads each review and drafts three tone options: Professional, Warm, and Apologetic. You pick the one that fits your brand voice, copy it, and paste it into your Google Business Profile." },
+  { q: "Can I cancel anytime?", a: "Absolutely. No contracts, no setup fees. Upgrade or downgrade whenever you want." },
+];
+
+const INDUSTRIES = ["Restaurants", "Home Services", "Automotive", "Medical & Healthcare", "Legal", "Real Estate", "Beauty & Personal Care", "Fitness & Wellness"];
+
 const PRO_TOOLS = [
   { id: "description", name: "Description Writer", description: "AI-optimized Google Business Profile description with local SEO keywords", icon: FileText },
   { id: "nap", name: "NAP Checker", description: "Verify Name, Address, Phone consistency across 50+ directories", icon: MapPin },
@@ -119,6 +130,7 @@ export default function SpotRisePage() {
   /* UI */
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "posts" | "competitors" | "tools">("overview");
   const [copiedPost, setCopiedPost] = useState<number | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   /* Derived */
   const filteredReviews = MOCK_REVIEWS.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
@@ -263,7 +275,7 @@ export default function SpotRisePage() {
                   You have {2 - auditCount} free audit{2 - auditCount !== 1 ? "s" : ""} remaining
                 </div>
               )}
-              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-cream border border-border-warm backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white border-2 border-border-warm shadow-sm">
                 <div className="flex-1 flex items-center gap-3 px-4 py-3">
                   <Search className="w-5 h-5 text-gray-warm shrink-0" />
                   <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -281,43 +293,62 @@ export default function SpotRisePage() {
               </div>
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-6 text-xs text-gray-warm">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />No credit card required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />2 free audits</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Instant results</span>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-warm">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />No credit card required</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />2 free audits</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />Instant results</span>
+              <button onClick={() => document.getElementById("video-demo")?.scrollIntoView({ behavior: "smooth" })} className="flex items-center gap-1.5 text-orange font-medium hover:text-orange-hover transition-colors">
+                <Play className="w-3.5 h-3.5" />View Demo
+              </button>
             </div>
           </div>
         </section>
 
-        {/* Demo Video Placeholder */}
-        <section className="pb-20 px-4">
+        {/* Industries */}
+        <section className="pb-16 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-sm text-gray-warm mb-5">Built specifically for business owners in the following industries.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {INDUSTRIES.map((ind) => (
+                <span key={ind} className="px-5 py-2.5 bg-white border border-border-warm rounded-full text-sm text-charcoal hover:border-orange hover:text-orange transition-colors cursor-default">{ind}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Demo Video */}
+        <section id="video-demo" className="pb-20 px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="relative aspect-video rounded-2xl bg-gradient-to-br from-white to-cream border border-border-warm flex flex-col items-center justify-center gap-4 overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-light to-orange-light" />
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center group-hover:bg-cream-dark transition-colors">
-                <Play className="w-6 h-6 text-charcoal ml-1" />
+            <div className="relative aspect-video rounded-2xl bg-charcoal overflow-hidden flex flex-col items-center justify-center gap-4 group cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-br from-charcoal/80 to-charcoal/40" />
+              <div className="relative z-10 text-center">
+                <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <Play className="w-6 h-6 text-white ml-1" />
+                </div>
+                <p className="text-white font-medium">See SpotRise in action</p>
+                <p className="text-white/60 text-sm mt-1">Demo video coming soon</p>
               </div>
-              <p className="text-gray-warm text-sm">Demo video coming soon</p>
             </div>
           </div>
         </section>
 
         {/* Features */}
-        <section className="py-20 border-t border-border-warm px-4">
+        <section id="features" className="py-20 border-t border-border-warm px-4">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="font-serif text-3xl font-bold">Everything You Need to Dominate Local Search</h2>
               <p className="mt-3 text-gray-warm">Consulting-grade insights, automated.</p>
             </div>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 gap-6">
               {[
-                { icon: BarChart3, title: "AI Audit Score", desc: "Get a 0-100 score with specific, actionable recommendations prioritized by impact." },
-                { icon: Target, title: "Competitor Gap Analysis", desc: "Add competitors and see exactly where you're losing and how to catch up." },
-                { icon: Sparkles, title: "Pro Tools Suite", desc: "Description writer, NAP checker, keyword finder, post generator, and more." },
+                { icon: BarChart3, title: "AI-Powered GBP Audit", desc: "Get a 0-100 score with specific, actionable fixes prioritized by impact. Know exactly what's hurting your visibility.", iconBg: "bg-orange-light", iconColor: "text-orange" },
+                { icon: MessageSquare, title: "Smart Review Replies", desc: "Never stare at a blank screen again. AI drafts Professional, Warm, and Apologetic replies to every review.", iconBg: "bg-blue-soft/15", iconColor: "text-blue-soft-dark" },
+                { icon: Calendar, title: "Weekly Post Generator", desc: "Get three ready-to-publish Google Business Posts every week — offers, updates, and events tailored to your business.", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+                { icon: Target, title: "Competitor Gap Analysis", desc: "Add competitors and see exactly where you're losing — photos, reviews, response rate — and how to catch up.", iconBg: "bg-rose-50", iconColor: "text-rose-500" },
               ].map((f, i) => (
-                <div key={i} className="p-6 rounded-2xl bg-cream border border-border-warm hover:border-border-warm transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-orange-light flex items-center justify-center mb-4"><f.icon className="w-5 h-5 text-orange" /></div>
-                  <h3 className="font-semibold mb-2">{f.title}</h3>
+                <div key={i} className="p-6 rounded-2xl bg-white border border-border-warm hover:shadow-md transition-shadow">
+                  <div className={`w-10 h-10 rounded-xl ${f.iconBg} flex items-center justify-center mb-4`}><f.icon className={`w-5 h-5 ${f.iconColor}`} /></div>
+                  <h3 className="font-serif text-lg font-semibold mb-2">{f.title}</h3>
                   <p className="text-sm text-gray-warm leading-relaxed">{f.desc}</p>
                 </div>
               ))}
@@ -353,7 +384,7 @@ export default function SpotRisePage() {
         </section>
 
         {/* Pricing */}
-        <section className="py-20 border-t border-border-warm px-4">
+        <section id="pricing" className="py-20 border-t border-border-warm px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="font-serif text-3xl font-bold">Simple Pricing</h2>
@@ -387,14 +418,72 @@ export default function SpotRisePage() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="py-8 border-t border-border-warm px-4">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-orange flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
-              <span className="font-serif font-semibold">SpotRise</span>
+        {/* FAQ */}
+        <section className="py-20 border-t border-border-warm px-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="font-serif text-3xl font-bold">Your questions, answered.</h2>
             </div>
-            <p className="text-xs text-gray-warm">© 2026 SpotRise. All rights reserved.</p>
+            <div className="space-y-4">
+              {FAQS.map((faq, i) => (
+                <div key={i} className={`border rounded-2xl overflow-hidden transition-all ${openFaq === i ? "border-charcoal bg-white shadow-md" : "border-border-warm bg-white/50"}`}>
+                  <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between p-6 text-left">
+                    <span className="font-medium text-charcoal pr-4">{faq.q}</span>
+                    {openFaq === i ? <ChevronUp className="w-5 h-5 text-orange shrink-0" /> : <ChevronDown className="w-5 h-5 text-gray-warm shrink-0" />}
+                  </button>
+                  {openFaq === i && (
+                    <p className="px-6 pb-6 text-gray-warm leading-relaxed">{faq.a}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Banner */}
+        <section className="max-w-5xl mx-auto px-4 pb-20">
+          <div className="bg-blue-soft rounded-[2.5rem] p-12 md:p-16 text-center">
+            <h2 className="font-serif text-3xl md:text-4xl text-charcoal mb-6">
+              Are you ready to dominate <span className="italic text-orange">local search</span> and generate more leads for your business?
+            </h2>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button onClick={() => setShowLogin(true)} className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors">Get started</button>
+              <button onClick={() => document.getElementById("video-demo")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-charcoal px-8 py-3.5 rounded-full font-medium hover:bg-cream-dark transition-colors">View Demo</button>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="border-t border-border-warm px-4">
+          <div className="max-w-6xl mx-auto py-12">
+            <div className="grid md:grid-cols-4 gap-8 mb-8">
+              <div className="md:col-span-1">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-orange flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
+                  <span className="text-lg font-serif font-bold text-charcoal">SpotRise</span>
+                </div>
+                <p className="text-sm text-gray-warm">Built for owners who want to take control of their Google presence.</p>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Product</h4>
+                <ul className="space-y-2 text-sm text-gray-warm">
+                  <li><a href="#features" className="hover:text-charcoal">Features</a></li>
+                  <li><a href="#pricing" className="hover:text-charcoal">Pricing</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Company</h4>
+                <ul className="space-y-2 text-sm text-gray-warm"><li><span className="hover:text-charcoal cursor-pointer">Blog</span></li></ul>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Legal</h4>
+                <ul className="space-y-2 text-sm text-gray-warm">
+                  <li><span className="hover:text-charcoal cursor-pointer">Privacy</span></li>
+                  <li><span className="hover:text-charcoal cursor-pointer">Terms</span></li>
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-border-warm pt-6 text-sm text-gray-warm">© 2026 SpotRise, Inc.</div>
           </div>
         </footer>
 
