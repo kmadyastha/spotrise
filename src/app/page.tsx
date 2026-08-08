@@ -1,721 +1,1029 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { 
-  Search, MapPin, Star, TrendingUp, MessageSquare, Calendar, 
-  Copy, Check, Loader2, ChevronDown, ChevronUp, ArrowRight,
-  Shield, Zap, BarChart3, Globe, CheckCircle2, X
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Search, Star, TrendingUp, TrendingDown, Minus, Lock, Zap, ChevronRight, X, User, Mail,
+  ArrowRight, Play, CheckCircle2, AlertCircle, MessageSquare, Calendar, BarChart3, Target,
+  FileText, MapPin, KeyRound, HelpCircle, Image as ImageIcon, Plus, Trash2, Eye, EyeOff,
+  RefreshCw, Copy, ThumbsUp, ThumbsDown, Clock, Camera, Phone, Globe, Award, Sparkles, Shield,
+} from "lucide-react";
 
-/* ─── Types ─── */
-interface BusinessMatch {
-  id: string;
-  name: string;
-  address: string;
-  rating: number;
-  reviewCount: number;
-}
+/* ================================================================
+   TYPES
+   ================================================================ */
+type UserState = "anonymous" | "free" | "pro";
 
 interface Review {
-  id: string;
-  author: string;
-  rating: number;
-  text: string;
-  date: string;
-  aiReplies: { professional: string; warm: string; apologetic: string };
+  id: number; author: string; rating: number; text: string; date: string;
+  sentiment: "positive" | "neutral" | "negative"; aiReply?: string;
+}
+interface Post {
+  id: number; title: string; content: string; date: string; type: string;
+}
+interface Competitor {
+  id: number; name: string; score: number; reviews: number; rating: number;
+  photos: number; responseRate: number;
+}
+interface BusinessSlot {
+  id: number; businessName: string | null; location: string | null; changed: boolean;
+}
+interface ActionItem {
+  id: number; priority: "high" | "medium" | "low"; title: string;
+  description: string; impact: string;
+}
+interface WeeklyChange {
+  metric: string; current: number; previous: number; change: number; unit: string;
 }
 
-interface WeeklyPost {
-  id: string;
-  type: string;
-  title: string;
-  content: string;
-}
-
-/* ─── FAQ Data ─── */
-const faqs = [
-  {
-    q: "What is SpotRise and how can it help my business?",
-    a: "SpotRise is an AI-powered Google Business Profile optimizer built for local businesses. We audit your profile, draft smart replies to reviews, generate weekly posts, and track your competitors — so you rank higher on Google Maps without hiring an agency."
-  },
-  {
-    q: "Do I need any tech skills?",
-    a: "Not at all. SpotRise is built for business owners, not marketers. Just enter your business name, and our AI handles the rest. Everything is copy-paste ready for your Google Business Profile."
-  },
-  {
-    q: "Will this actually improve my Google ranking?",
-    a: "Yes. Google rewards active, complete profiles with regular posts and prompt review replies. SpotRise automates exactly those signals that push you higher in local search results."
-  },
-  {
-    q: "What if I already have a website?",
-    a: "SpotRise complements your website by optimizing your Google Business Profile — the #1 factor for local search visibility. We don't replace your site; we make sure customers find you on Google Maps first."
-  },
-  {
-    q: "How does the review reply AI work?",
-    a: "Our AI reads each review and drafts three tone options: Professional, Warm, and Apologetic. You pick the one that fits your brand voice, copy it, and paste it into your Google Business Profile. Auto-posting coming soon for Pro users."
-  },
-  {
-    q: "Can I cancel anytime?",
-    a: "Absolutely. No contracts, no setup fees. Upgrade or downgrade whenever you want. Your audit history stays saved even on the free plan."
-  }
+/* ================================================================
+   MOCK DATA
+   ================================================================ */
+const MOCK_REVIEWS: Review[] = [
+  { id: 1, author: "Sarah M.", rating: 5, text: "Absolutely loved the service! The team went above and beyond. Will definitely recommend to friends.", date: "2 days ago", sentiment: "positive", aiReply: "Thank you so much, Sarah! We're thrilled you had a great experience. Looking forward to serving you again!" },
+  { id: 2, author: "James K.", rating: 2, text: "Waited 45 minutes for my order. Staff seemed overwhelmed. Food was okay but not worth the wait.", date: "5 days ago", sentiment: "negative", aiReply: "Hi James, we sincerely apologize for the long wait. We're actively hiring more staff for peak hours. We'd love to make this right — please DM us." },
+  { id: 3, author: "Priya R.", rating: 4, text: "Great ambiance and friendly staff. The pasta was delicious but dessert menu could use more options.", date: "1 week ago", sentiment: "positive", aiReply: "Thanks Priya! So glad you enjoyed the pasta. We're actually expanding our dessert menu next month — stay tuned!" },
+  { id: 4, author: "Mike T.", rating: 1, text: "Rude manager. Refused to honor the coupon. Never coming back.", date: "2 weeks ago", sentiment: "negative", aiReply: "Mike, we're truly sorry about your experience. This doesn't reflect our values. Our GM would like to speak with you personally — please call us at (555) 123-4567." },
+  { id: 5, author: "Lisa W.", rating: 5, text: "Hidden gem! Best brunch spot in the city. The avocado toast is a must-try.", date: "3 weeks ago", sentiment: "positive", aiReply: "Lisa, you just made our day! The avocado toast is our chef's pride. See you again soon!" },
 ];
 
-/* ─── Main Component ─── */
-export default function Home() {
-  const [view, setView] = useState<'landing' | 'app'>('landing');
-  const [appStep, setAppStep] = useState<'search' | 'loading' | 'matches' | 'dashboard'>('search');
-  const [businessName, setBusinessName] = useState('');
-  const [city, setCity] = useState('');
-  const [matches, setMatches] = useState<BusinessMatch[]>([]);
-  const [selectedBusiness, setSelectedBusiness] = useState<BusinessMatch | null>(null);
-  const [auditScore, setAuditScore] = useState(65);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [posts, setPosts] = useState<WeeklyPost[]>([]);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
+const MOCK_POSTS: Post[] = [
+  { id: 1, title: "Weekend Special", content: "🍕 This weekend only: Buy any large pizza, get a free garlic bread! Valid Sat-Sun. Walk-ins welcome.", date: "Mon, Aug 4", type: "Offer" },
+  { id: 2, title: "New Menu Item", content: "🥑 Introducing our Truffle Avocado Toast — chef's special with poached eggs and microgreens. Available starting today!", date: "Wed, Aug 6", type: "Update" },
+  { id: 3, title: "Customer Spotlight", content: "❤️ Thank you to everyone who joined our anniversary celebration! Here are some highlights from the evening.", date: "Fri, Aug 8", type: "Event" },
+  { id: 4, title: "Behind the Scenes", content: "👨‍🍳 Meet Chef Marco! With 15 years of experience, he's the mastermind behind our signature dishes. Swipe to see his story.", date: "Sun, Aug 10", type: "Story" },
+];
 
-  /* ─── App Flow Handlers ─── */
-  const handleSearch = async () => {
-    if (!businessName || !city) return;
-    setAppStep('loading');
-    setTimeout(() => {
-      setMatches([
-        { id: '1', name: businessName, address: `${businessName}, Main Street, ${city}`, rating: 4.2, reviewCount: 234 },
-        { id: '2', name: `${businessName} (Downtown)`, address: `${businessName}, Downtown, ${city}`, rating: 3.8, reviewCount: 89 },
-      ]);
-      setAppStep('matches');
-    }, 1500);
+const MOCK_COMPETITORS: Competitor[] = [
+  { id: 1, name: "Rival Bistro", score: 78, reviews: 312, rating: 4.3, photos: 89, responseRate: 45 },
+  { id: 2, name: "The Corner Cafe", score: 71, reviews: 198, rating: 4.1, photos: 34, responseRate: 22 },
+];
+
+const MOCK_ACTION_ITEMS: ActionItem[] = [
+  { id: 1, priority: "high", title: "Response Rate Critical", description: "You're responding to only 23% of reviews. Top performers in your category reply within 24 hours to ALL reviews.", impact: "+15% customer trust" },
+  { id: 2, priority: "high", title: "Photo Gap Hurting Visibility", description: "You added 0 photos this month. Businesses with 10+ recent photos get 42% more direction requests.", impact: "+42% direction requests" },
+  { id: 3, priority: "medium", title: "Negative Review Pattern", description: "3 recent reviews mention 'slow service' and 'long wait times'. Consider adding staff during 12-2pm peak hours.", impact: "-30% negative reviews" },
+  { id: 4, priority: "medium", title: "Missing Business Description", description: "Your GBP description is under 100 characters. Optimized descriptions (750 chars) with keywords boost search by 28%.", impact: "+28% search visibility" },
+  { id: 5, priority: "low", title: "Q&A Section Empty", description: "You have 0 answered questions. Proactively adding Q&As improves engagement and captures long-tail searches.", impact: "+12% profile engagement" },
+];
+
+const MOCK_WEEKLY_CHANGES: WeeklyChange[] = [
+  { metric: "New Reviews", current: 8, previous: 5, change: 60, unit: "" },
+  { metric: "Avg Rating", current: 4.2, previous: 4.0, change: 5, unit: "★" },
+  { metric: "Response Rate", current: 23, previous: 35, change: -34, unit: "%" },
+  { metric: "Profile Views", current: 342, previous: 298, change: 15, unit: "" },
+  { metric: "Photo Count", current: 12, previous: 12, change: 0, unit: "" },
+];
+
+const PRO_TOOLS = [
+  { id: "description", name: "Description Writer", description: "AI-optimized Google Business Profile description with local SEO keywords", icon: FileText },
+  { id: "nap", name: "NAP Checker", description: "Verify Name, Address, Phone consistency across 50+ directories", icon: MapPin },
+  { id: "keywords", name: "Keyword Finder", description: "Discover what your customers actually search for in your area", icon: KeyRound },
+  { id: "qa", name: "Q&A Generator", description: "Generate common customer questions and AI-optimized answers", icon: HelpCircle },
+  { id: "posts", name: "Post Generator", description: "AI-generated weekly posts tailored to your business and local events", icon: Sparkles },
+  { id: "photos", name: "Photo Strategy", description: "AI recommendations on what photos to add and why they matter", icon: ImageIcon },
+];
+
+/* ================================================================
+   COMPONENT
+   ================================================================ */
+export default function SpotRisePage() {
+  const [userState, setUserState] = useState<UserState>("anonymous");
+  const [hasSearched, setHasSearched] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [location, setLocation] = useState("");
+  const [auditCount, setAuditCount] = useState(0);
+  const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
+    { id: 1, businessName: null, location: null, changed: false },
+    { id: 2, businessName: null, location: null, changed: false },
+  ]);
+  const [currentSlot, setCurrentSlot] = useState(1);
+
+  /* Modals */
+  const [showLogin, setShowLogin] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showAuditLimit, setShowAuditLimit] = useState(false);
+  const [showBusinessLimit, setShowBusinessLimit] = useState(false);
+  const [showFinalChange, setShowFinalChange] = useState(false);
+  const [showAlreadyChanged, setShowAlreadyChanged] = useState(false);
+  const [showAddCompetitor, setShowAddCompetitor] = useState(false);
+  const [showCompetitorUpgrade, setShowCompetitorUpgrade] = useState(false);
+
+  /* Competitors */
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [compSearchName, setCompSearchName] = useState("");
+  const [compSearchLoc, setCompSearchLoc] = useState("");
+
+  /* Reviews */
+  const [reviewFilter, setReviewFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
+
+  /* UI */
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "posts" | "competitors" | "tools">("overview");
+  const [copiedPost, setCopiedPost] = useState<number | null>(null);
+
+  /* Derived */
+  const filteredReviews = MOCK_REVIEWS.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
+  const score = 67;
+  const positivePct = 62;
+  const neutralPct = 18;
+  const negativePct = 20;
+  const usedSlots = businessSlots.filter((s) => s.businessName !== null).length;
+  const currentBusiness = businessSlots.find((s) => s.id === currentSlot);
+
+  /* Handlers */
+  const handleSearch = useCallback(() => {
+    if (!businessName.trim() || !location.trim()) return;
+    if (userState === "anonymous") {
+      if (auditCount >= 2) { setShowAuditLimit(true); return; }
+      setAuditCount((c) => c + 1);
+    }
+    if (userState !== "anonymous") {
+      const emptySlot = businessSlots.find((s) => s.businessName === null);
+      const existingSlot = businessSlots.find((s) => s.businessName?.toLowerCase() === businessName.toLowerCase());
+      if (existingSlot) { setCurrentSlot(existingSlot.id); }
+      else if (emptySlot) {
+        const updated = businessSlots.map((s) => s.id === emptySlot.id ? { ...s, businessName, location } : s);
+        setBusinessSlots(updated);
+        setCurrentSlot(emptySlot.id);
+      } else { setShowBusinessLimit(true); return; }
+    }
+    setHasSearched(true);
+    setActiveTab("overview");
+  }, [businessName, location, userState, auditCount, businessSlots]);
+
+  const handleLogin = () => { setUserState("free"); setShowLogin(false); };
+  const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
+
+  const handleChangeBusiness = (slotId: number) => {
+    const slot = businessSlots.find((s) => s.id === slotId);
+    if (!slot) return;
+    if (slot.changed) { setShowAlreadyChanged(true); return; }
+    setShowFinalChange(true);
   };
 
-  const handleSelectBusiness = async (business: BusinessMatch) => {
-    setSelectedBusiness(business);
-    setAppStep('loading');
-    setTimeout(() => {
-      setAuditScore(Math.floor(Math.random() * 30) + 55);
-      setReviews([
-        {
-          id: '1', author: 'Sarah M.', rating: 2, text: 'Waited 45 minutes for a table. Food was cold when it finally arrived. Very disappointing experience.', date: '2 days ago',
-          aiReplies: {
-            professional: 'Thank you for your feedback, Sarah. We sincerely apologize for the wait and food quality issues. We would like to make this right. Please contact us directly so we can address your concerns.',
-            warm: 'Hi Sarah, we are so sorry to hear about your experience. That is not the standard we hold ourselves to. We would love to invite you back for a meal on us. Please reach out!',
-            apologetic: 'Sarah, we are truly sorry. You deserved better, and we failed you. We have addressed this with our team and would appreciate the chance to earn back your trust.'
-          }
-        },
-        {
-          id: '2', author: 'Mike R.', rating: 5, text: 'Amazing food and great service! Will definitely be coming back.', date: '1 week ago',
-          aiReplies: {
-            professional: 'Thank you so much for your kind words, Mike! We are thrilled you enjoyed your experience and look forward to welcoming you back soon.',
-            warm: 'Mike, you just made our day! Thank you for the love. We cannot wait to see you again!',
-            apologetic: 'Thank you for the wonderful review, Mike! We are so happy you had a great time.'
-          }
-        }
-      ]);
-      setPosts([
-        { id: '1', type: 'Offer', title: 'Weekend Special', content: '🍕 This weekend only! Buy one large pizza, get one free. Valid Saturday & Sunday. Mention this post at checkout. #WeekendSpecial #PizzaLovers' },
-        { id: '2', type: 'Update', title: 'New Hours', content: 'We are now open until 11 PM on Fridays and Saturdays! Come by for late-night bites. 🌙' },
-        { id: '3', type: 'Event', title: 'Live Music Friday', content: '🎵 Join us this Friday for live jazz from 7-10 PM. Reserve your table now! #LiveMusic #FridayNight' },
-      ]);
-      setAppStep('dashboard');
-    }, 2000);
+  const confirmChangeBusiness = () => {
+    setBusinessSlots((slots) => slots.map((s) => s.id === currentSlot ? { ...s, businessName: null, location: null, changed: true } : s));
+    setShowFinalChange(false);
+    setHasSearched(false);
+    setBusinessName("");
+    setLocation("");
+    setCompetitors([]);
   };
 
-  const copyReply = (id: string, reply: string) => {
-    navigator.clipboard.writeText(reply);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleAddCompetitor = () => {
+    if (userState !== "pro") { setShowCompetitorUpgrade(true); return; }
+    if (competitors.length >= 3) return;
+    setShowAddCompetitor(true);
   };
 
-  const getScoreColor = (s: number) => s >= 80 ? 'text-green-600' : s >= 60 ? 'text-orange-500' : 'text-red-500';
-  const getScoreLabel = (s: number) => s >= 80 ? 'Excellent' : s >= 60 ? 'Average' : 'Needs Work';
+  const confirmAddCompetitor = () => {
+    if (!compSearchName.trim() || !compSearchLoc.trim()) return;
+    const newComp: Competitor = {
+      id: Date.now(), name: compSearchName,
+      score: Math.floor(Math.random() * 30) + 60,
+      reviews: Math.floor(Math.random() * 300) + 50,
+      rating: Number((Math.random() * 1.5 + 3.5).toFixed(1)),
+      photos: Math.floor(Math.random() * 100) + 10,
+      responseRate: Math.floor(Math.random() * 80) + 10,
+    };
+    setCompetitors((c) => [...c, newComp]);
+    setCompSearchName(""); setCompSearchLoc(""); setShowAddCompetitor(false);
+  };
 
-  /* ─── Render ─── */
-  return (
-    <main className="min-h-screen bg-cream">
-      
-      {/* ═══════════════════════════════════════
-          NAVBAR
-      ═══════════════════════════════════════ */}
-      <nav className="sticky top-0 z-50 bg-cream/80 backdrop-blur-md border-b border-border-warm">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-orange rounded-full flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-white" />
+  const removeCompetitor = (id: number) => { setCompetitors((c) => c.filter((comp) => comp.id !== id)); };
+
+  const copyPost = (id: number, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedPost(id);
+    setTimeout(() => setCopiedPost(null), 2000);
+  };
+
+  const getScoreColor = (s: number) => { if (s >= 80) return "text-emerald-400"; if (s >= 60) return "text-amber-400"; return "text-red-400"; };
+  const getPriorityColor = (p: string) => {
+    if (p === "high") return "bg-red-500/20 text-red-400 border-red-500/30";
+    if (p === "medium") return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+    return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+  };
+
+  /* ================================================================
+     LANDING PAGE
+     ================================================================ */
+  if (!hasSearched) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] text-white">
+        {/* Navbar */}
+        <nav className="border-b border-white/5 backdrop-blur-xl sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-bold tracking-tight">SpotRise</span>
             </div>
-            <span className="text-xl font-bold text-charcoal tracking-tight">SpotRise</span>
+            <div className="flex items-center gap-4">
+              {userState === "anonymous" ? (
+                <>
+                  <button onClick={() => setShowLogin(true)} className="text-sm text-white/60 hover:text-white transition-colors">Sign In</button>
+                  <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">Get Started</button>
+                </>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
+                    {userState === "pro" ? "Pro Plan" : "Free Plan"}
+                  </span>
+                  {userState !== "pro" && (
+                    <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity">Upgrade</button>
+                  )}
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><User className="w-4 h-4 text-white/60" /></div>
+                </div>
+              )}
+            </div>
           </div>
-          
-          {view === 'landing' ? (
-            <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-warm">
-              <a href="#features" className="hover:text-charcoal transition-colors">Features</a>
-              <a href="#pricing" className="hover:text-charcoal transition-colors">Pricing</a>
-              <a href="#faq" className="hover:text-charcoal transition-colors">FAQ</a>
-            </div>
-          ) : (
-            <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-warm">
-              <span className="text-charcoal">Audit Dashboard</span>
-            </div>
-          )}
+        </nav>
 
+        {/* Hero */}
+        <section className="pt-20 pb-12 px-4">
+          <div className="max-w-6xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-medium mb-6">
+              <Sparkles className="w-3.5 h-3.5" />
+              AI-Powered Business Intelligence
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight max-w-5xl mx-auto leading-tight">
+              Turn Your Google Profile Into{" "}
+              <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-amber-400 bg-clip-text text-transparent">a Customer Magnet</span>
+            </h1>
+            <p className="mt-6 text-lg text-white/50 max-w-3xl mx-auto leading-relaxed">
+              Get a complete AI audit of your Google Business Profile. Discover exactly what's hurting your visibility and what to fix first — in under 60 seconds.
+            </p>
+
+            {/* Search Box */}
+            <div className="mt-10 max-w-2xl mx-auto">
+              {userState === "anonymous" && auditCount > 0 && (
+                <div className="mb-3 text-sm text-amber-400 flex items-center justify-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  You have {2 - auditCount} free audit{2 - auditCount !== 1 ? "s" : ""} remaining
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                <div className="flex-1 flex items-center gap-3 px-4 py-3">
+                  <Search className="w-5 h-5 text-white/30 shrink-0" />
+                  <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+                </div>
+                <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-white/10">
+                  <MapPin className="w-5 h-5 text-white/30 shrink-0" />
+                  <input type="text" placeholder="City (e.g., Austin)" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+                </div>
+                <button onClick={handleSearch} disabled={!businessName.trim() || !location.trim()}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  Audit Now <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/30">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />No credit card required</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />2 free audits</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Instant results</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Demo Video Placeholder */}
+        <section className="pb-20 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="relative aspect-video rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-4 overflow-hidden group cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5" />
+              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                <Play className="w-6 h-6 text-white ml-1" />
+              </div>
+              <p className="text-white/40 text-sm">Demo video coming soon</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section className="py-20 border-t border-white/5 px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-bold">Everything You Need to Dominate Local Search</h2>
+              <p className="mt-3 text-white/50">Consulting-grade insights, automated.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                { icon: BarChart3, title: "AI Audit Score", desc: "Get a 0-100 score with specific, actionable recommendations prioritized by impact." },
+                { icon: Target, title: "Competitor Gap Analysis", desc: "Add competitors and see exactly where you're losing and how to catch up." },
+                { icon: Sparkles, title: "Pro Tools Suite", desc: "Description writer, NAP checker, keyword finder, post generator, and more." },
+              ].map((f, i) => (
+                <div key={i} className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-4"><f.icon className="w-5 h-5 text-violet-400" /></div>
+                  <h3 className="font-semibold mb-2">{f.title}</h3>
+                  <p className="text-sm text-white/50 leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section className="py-20 border-t border-white/5 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-bold">How It Works</h2>
+              <p className="mt-3 text-white/50">From search to insights in 3 steps.</p>
+            </div>
+            <div className="space-y-8">
+              {[
+                { step: "01", title: "Search Your Business", desc: "Enter your business name and city. We scan your Google Business Profile instantly." },
+                { step: "02", title: "Get Your AI Audit", desc: "Receive a detailed score, sentiment analysis, and prioritized action items." },
+                { step: "03", title: "Fix & Grow", desc: "Use our Pro Tools to optimize your profile and watch your visibility soar." },
+              ].map((s, i) => (
+                <div key={i} className="flex gap-6 items-start">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center shrink-0 border border-violet-500/20">
+                    <span className="text-sm font-bold text-violet-400">{s.step}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">{s.title}</h3>
+                    <p className="text-white/50 mt-1">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section className="py-20 border-t border-white/5 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-bold">Simple Pricing</h2>
+              <p className="mt-3 text-white/50">Start free. Upgrade when you're ready.</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                <div className="text-sm text-white/40 font-medium mb-2">Free</div>
+                <div className="text-3xl font-bold mb-1">$0</div>
+                <div className="text-sm text-white/40 mb-6">Forever free</div>
+                <ul className="space-y-3 mb-6">
+                  {["2 full AI audits", "Review sentiment analysis", "Basic action items", "1 business profile"].map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm text-white/60"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />{item}</li>
+                  ))}
+                </ul>
+                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-sm font-medium">Get Started Free</button>
+              </div>
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-xs font-medium">Most Popular</div>
+                <div className="text-sm text-violet-400 font-medium mb-2">Pro</div>
+                <div className="text-3xl font-bold mb-1">$9<span className="text-lg text-white/40 font-normal">/mo</span></div>
+                <div className="text-sm text-white/40 mb-6">Billed monthly</div>
+                <ul className="space-y-3 mb-6">
+                  {["Unlimited AI audits", "Competitor gap analysis (3 max)", "All Pro Tools unlocked", "2 business profiles", "Weekly pulse reports", "Priority support"].map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm text-white/80"><CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0" />{item}</li>
+                  ))}
+                </ul>
+                <button onClick={() => setShowUpgrade(true)} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity text-sm font-medium">Upgrade to Pro</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="py-8 border-t border-white/5 px-4">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
+              <span className="font-semibold">SpotRise</span>
+            </div>
+            <p className="text-xs text-white/30">© 2026 SpotRise. All rights reserved.</p>
+          </div>
+        </footer>
+
+        {/* Modals */}
+        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+        <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
+        <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
+      </div>
+    );
+  }
+
+  /* ================================================================
+     DASHBOARD
+     ================================================================ */
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Navbar */}
+      <nav className="border-b border-white/5 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button className="text-sm font-medium text-gray-warm hover:text-charcoal transition-colors">
-              Sign in
-            </button>
-            <button 
-              onClick={() => { setView('app'); setAppStep('search'); }}
-              className="text-sm font-medium bg-orange text-white px-5 py-2.5 rounded-full hover:bg-orange-hover transition-colors"
-            >
-              Get started →
-            </button>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center cursor-pointer" onClick={() => setHasSearched(false)}>
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold tracking-tight cursor-pointer" onClick={() => setHasSearched(false)}>SpotRise</span>
+            {userState !== "anonymous" && currentBusiness?.businessName && (
+              <div className="hidden sm:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
+                <span className="text-white/40">Business {currentSlot} of 2:</span>
+                <span className="text-white/80 font-medium">{currentBusiness.businessName}</span>
+                {!currentBusiness.changed && (
+                  <button onClick={() => handleChangeBusiness(currentSlot)} className="text-violet-400 hover:text-violet-300 ml-1">Change</button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {userState === "anonymous" ? (
+              <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">Sign In</button>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
+                  {userState === "pro" ? "Pro Plan" : "Free Plan"}
+                </span>
+                {userState !== "pro" && (
+                  <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity">Upgrade</button>
+                )}
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><User className="w-4 h-4 text-white/60" /></div>
+              </div>
+            )}
           </div>
         </div>
       </nav>
 
-      {/* ═══════════════════════════════════════
-          LANDING PAGE
-      ═══════════════════════════════════════ */}
-      {view === 'landing' && (
-        <div className="animate-in fade-in duration-500">
-          
-          {/* ─── Hero ─── */}
-          <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
-            <p className="text-xs font-semibold tracking-[0.2em] text-orange uppercase mb-6">
-              Built for Owners
-            </p>
-            <h1 className="font-serif text-5xl md:text-7xl text-charcoal leading-[1.1] mb-6">
-              Take control of your business's{' '}
-              <span className="italic text-orange">Google presence.</span>
-            </h1>
-            <p className="text-lg text-gray-warm max-w-2xl mx-auto mb-10 leading-relaxed">
-              AI-powered audits, smart review replies, and weekly posts — all in one dashboard. 
-              Watch your Google Business Profile start generating more local leads.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-              <button 
-                onClick={() => { setView('app'); setAppStep('search'); }}
-                className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-all"
-              >
-                Get started
-              </button>
-              <button className="border-2 border-charcoal text-charcoal px-8 py-3.5 rounded-full font-medium hover:bg-charcoal hover:text-white transition-all">
-                Schedule a Demo
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-warm">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-orange" /> Cancel anytime</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-orange" /> No code required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-orange" /> Live in under 2 minutes</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-orange" /> Runs on autopilot</span>
-            </div>
-          </section>
-
-          {/* ─── Industries ─── */}
-          <section className="max-w-4xl mx-auto px-6 pb-20 text-center">
-            <p className="text-sm text-gray-warm mb-5">
-              Built specifically for business owners in the following industries.
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {['Restaurants','Home Services','Automotive','Medical & Healthcare','Legal','Real Estate','Beauty & Personal Care','Fitness & Wellness'].map((ind) => (
-                <span key={ind} className="px-5 py-2.5 bg-white border border-border-warm rounded-full text-sm text-charcoal hover:border-orange hover:text-orange transition-colors cursor-default">
-                  {ind}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          {/* ─── Features ─── */}
-          <section id="features" className="max-w-5xl mx-auto px-6 py-20">
-            <p className="text-xs font-semibold tracking-[0.2em] text-orange uppercase text-center mb-4">
-              Features
-            </p>
-            <h2 className="font-serif text-4xl md:text-5xl text-charcoal text-center mb-16">
-              Everything you need.
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {[
-                { icon: <BarChart3 className="w-6 h-6 text-orange" />, title: 'AI-Powered GBP Audit', desc: 'Our AI analyzes your Google Business Profile and gives you a clear 0-100 score with actionable fixes. Know exactly what is hurting your visibility.' },
-                { icon: <MessageSquare className="w-6 h-6 text-orange" />, title: 'Smart Review Replies', desc: 'Never stare at a blank screen again. AI drafts Professional, Warm, and Apologetic replies to every review. Just copy, paste, and post.' },
-                { icon: <Calendar className="w-6 h-6 text-orange" />, title: 'Weekly Post Generator', desc: 'Get three ready-to-publish Google Business Posts every week — offers, updates, and events tailored to your industry and local audience.' },
-                { icon: <Globe className="w-6 h-6 text-orange" />, title: 'Competitor Tracking', desc: 'See how you stack up against nearby competitors. Track their photo count, post frequency, and review ratings side by side.' },
-              ].map((f, i) => (
-                <div key={i} className="bg-white border border-border-warm rounded-3xl p-8 hover:shadow-lg transition-shadow">
-                  <div className="w-12 h-12 bg-orange-light rounded-2xl flex items-center justify-center mb-5">
-                    {f.icon}
-                  </div>
-                  <h3 className="font-serif text-2xl text-charcoal mb-3">{f.title}</h3>
-                  <p className="text-gray-warm leading-relaxed">{f.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* ─── Pricing ─── */}
-          <section id="pricing" className="max-w-4xl mx-auto px-6 py-20 text-center">
-            <p className="text-xs font-semibold tracking-[0.2em] text-orange uppercase mb-4">
-              Pricing
-            </p>
-            <h2 className="font-serif text-4xl md:text-5xl text-charcoal mb-4">
-              Dominate local search{' '}
-              <span className="italic text-orange">without breaking the bank.</span>
-            </h2>
-            <p className="text-gray-warm mb-12 max-w-xl mx-auto">
-              One simple plan. No credit pools, no hidden fees. Everything you need to grow your Google presence.
-            </p>
-
-            <div className="bg-white border-2 border-charcoal rounded-3xl p-10 max-w-md mx-auto relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-charcoal text-white text-xs font-semibold px-4 py-1 rounded-full uppercase tracking-wider">
-                Most Popular
-              </div>
-              <h3 className="font-serif text-3xl text-charcoal mb-2">Growth</h3>
-              <div className="flex items-baseline justify-center gap-1 mb-2">
-                <span className="font-serif text-6xl text-charcoal">$9</span>
-                <span className="text-gray-warm text-lg">/mo</span>
-              </div>
-              <p className="text-sm text-gray-warm mb-8">For businesses ready to own their Google presence.</p>
-              
-              <ul className="text-left space-y-4 mb-8">
-                {[
-                  'Unlimited AI review reply drafts',
-                  'Weekly post generator (3 posts/week)',
-                  'Full GBP audit with score tracking',
-                  'Competitor snapshot (3 competitors)',
-                  'Weekly email reports',
-                  'Export audit as PDF'
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-charcoal">
-                    <CheckCircle2 className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              
-              <button 
-                onClick={() => { setView('app'); setAppStep('search'); }}
-                className="w-full bg-orange text-white py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors"
-              >
-                Get started
-              </button>
-              <p className="text-xs text-gray-warm mt-4">
-                By subscribing you agree to our Terms of Service.
-              </p>
-            </div>
-          </section>
-
-          {/* ─── FAQ ─── */}
-          <section id="faq" className="max-w-3xl mx-auto px-6 py-20">
-            <p className="text-xs font-semibold tracking-[0.2em] text-orange uppercase text-center mb-4">
-              FAQ
-            </p>
-            <h2 className="font-serif text-4xl md:text-5xl text-charcoal text-center mb-12">
-              Your questions, answered.
-            </h2>
-            
-            <div className="space-y-4">
-              {faqs.map((faq, i) => (
-                <div 
-                  key={i} 
-                  className={`border rounded-2xl overflow-hidden transition-all ${openFaq === i ? 'border-charcoal bg-white shadow-md' : 'border-border-warm bg-white/50'}`}
-                >
-                  <button
-                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                    className="w-full flex items-center justify-between p-6 text-left"
-                  >
-                    <span className="font-medium text-charcoal pr-4">{faq.q}</span>
-                    {openFaq === i ? (
-                      <ChevronUp className="w-5 h-5 text-orange flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-warm flex-shrink-0" />
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {openFaq === i && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <p className="px-6 pb-6 text-gray-warm leading-relaxed">
-                          {faq.a}
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* ─── CTA ─── */}
-          <section className="max-w-5xl mx-auto px-6 pb-20">
-            <div className="bg-blue-soft rounded-[2.5rem] p-12 md:p-16 text-center relative overflow-hidden">
-              <h2 className="font-serif text-3xl md:text-4xl text-charcoal mb-4 relative z-10">
-                Are you ready to dominate{' '}
-                <span className="italic text-orange">local search</span> and generate more leads for your business?
-              </h2>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
-                <button 
-                  onClick={() => { setView('app'); setAppStep('search'); }}
-                  className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors"
-                >
-                  Get started
-                </button>
-                <button className="bg-white text-charcoal px-8 py-3.5 rounded-full font-medium hover:bg-cream transition-colors">
-                  Schedule a demo
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* ─── Footer ─── */}
-          <footer className="border-t border-border-warm bg-cream">
-            <div className="max-w-6xl mx-auto px-6 py-12">
-              <div className="grid md:grid-cols-4 gap-8 mb-8">
-                <div className="md:col-span-1">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-7 h-7 bg-orange rounded-full flex items-center justify-center">
-                      <TrendingUp className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <span className="text-lg font-bold text-charcoal">SpotRise</span>
-                  </div>
-                  <p className="text-sm text-gray-warm">
-                    Built for owners who want to take control of their Google presence.
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Product</h4>
-                  <ul className="space-y-2 text-sm text-gray-warm">
-                    <li><a href="#features" className="hover:text-charcoal">Features</a></li>
-                    <li><a href="#pricing" className="hover:text-charcoal">Pricing</a></li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Company</h4>
-                  <ul className="space-y-2 text-sm text-gray-warm">
-                    <li><span className="hover:text-charcoal cursor-pointer">Blog</span></li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Legal</h4>
-                  <ul className="space-y-2 text-sm text-gray-warm">
-                    <li><span className="hover:text-charcoal cursor-pointer">Privacy</span></li>
-                    <li><span className="hover:text-charcoal cursor-pointer">Terms</span></li>
-                  </ul>
-                </div>
-              </div>
-              <div className="border-t border-border-warm pt-6 text-sm text-gray-warm">
-                © 2026 SpotRise, Inc.
-              </div>
-            </div>
-          </footer>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/5 mb-8 overflow-x-auto">
+          {[
+            { id: "overview" as const, label: "Overview", icon: BarChart3 },
+            { id: "reviews" as const, label: "Reviews", icon: MessageSquare },
+            { id: "posts" as const, label: "Weekly Posts", icon: Calendar },
+            { id: "competitors" as const, label: "Competitors", icon: Target },
+            { id: "tools" as const, label: "Pro Tools", icon: Sparkles },
+          ].map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60"}`}>
+              <tab.icon className="w-4 h-4" />{tab.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* ═══════════════════════════════════════
-          APP / DASHBOARD VIEW
-      ═══════════════════════════════════════ */}
-      {view === 'app' && (
-        <div className="max-w-6xl mx-auto px-6 py-8 animate-in fade-in duration-300">
-          
-          {/* App Header */}
-          <div className="flex items-center justify-between mb-10">
-            <button 
-              onClick={() => setView('landing')}
-              className="text-sm text-gray-warm hover:text-charcoal flex items-center gap-1 transition-colors"
-            >
-              ← Back to home
-            </button>
-            <button 
-              onClick={() => { setAppStep('search'); setSelectedBusiness(null); }}
-              className="text-sm text-gray-warm hover:text-charcoal transition-colors"
-            >
-              Audit another business →
-            </button>
-          </div>
-
-          <AnimatePresence mode="wait">
-            
-            {/* ─── Search Step ─── */}
-            {appStep === 'search' && (
-              <motion.div
-                key="search"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="max-w-xl mx-auto text-center pt-12"
-              >
-                <h2 className="font-serif text-4xl text-charcoal mb-4">Run your free audit</h2>
-                <p className="text-gray-warm mb-10">Enter your business details and we'll analyze your Google presence in seconds.</p>
-                
-                <div className="bg-white border border-border-warm rounded-3xl p-8 shadow-sm">
-                  <div className="space-y-5 text-left">
-                    <div>
-                      <label className="block text-sm font-medium text-charcoal mb-2">Business Name</label>
-                      <div className="relative">
-                        <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-warm" />
-                        <input
-                          type="text"
-                          placeholder="e.g., Joe's Pizza"
-                          className="w-full pl-12 pr-4 py-3.5 bg-cream border border-border-warm rounded-2xl focus:ring-2 focus:ring-orange focus:border-transparent outline-none transition-all"
-                          value={businessName}
-                          onChange={(e) => setBusinessName(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-charcoal mb-2">City or Area</label>
-                      <div className="relative">
-                        <MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-warm" />
-                        <input
-                          type="text"
-                          placeholder="e.g., Austin, TX"
-                          className="w-full pl-12 pr-4 py-3.5 bg-cream border border-border-warm rounded-2xl focus:ring-2 focus:ring-orange focus:border-transparent outline-none transition-all"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleSearch}
-                      disabled={!businessName || !city}
-                      className="w-full bg-orange text-white py-4 rounded-2xl font-medium hover:bg-orange-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                    >
-                      <Search className="w-5 h-5" />
-                      Run Free Audit
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ─── Loading Step ─── */}
-            {appStep === 'loading' && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center min-h-[50vh]"
-              >
-                <Loader2 className="w-10 h-10 text-orange animate-spin mb-4" />
-                <h3 className="font-serif text-2xl text-charcoal">
-                  {selectedBusiness ? 'Analyzing your profile...' : 'Finding your business...'}
-                </h3>
-                <p className="text-gray-warm mt-2">
-                  {selectedBusiness ? 'Scanning reviews, photos, and competitors...' : 'Searching Google Maps...'}
-                </p>
-              </motion.div>
-            )}
-
-            {/* ─── Matches Step ─── */}
-            {appStep === 'matches' && (
-              <motion.div
-                key="matches"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="max-w-xl mx-auto pt-8"
-              >
-                <h2 className="font-serif text-3xl text-charcoal mb-2">We found {matches.length} matches</h2>
-                <p className="text-gray-warm mb-8">Select your business to run the full audit.</p>
-                
-                <div className="space-y-4">
-                  {matches.map((match) => (
-                    <button
-                      key={match.id}
-                      onClick={() => handleSelectBusiness(match)}
-                      className="w-full bg-white border border-border-warm rounded-2xl p-5 hover:border-orange hover:shadow-md transition-all text-left flex items-center gap-5 group"
-                    >
-                      <div className="w-14 h-14 bg-cream rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-orange-light transition-colors">
-                        <MapPin className="w-6 h-6 text-orange" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-charcoal text-lg">{match.name}</h3>
-                        <p className="text-sm text-gray-warm">{match.address}</p>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="flex items-center gap-1 text-sm font-medium">
-                            <Star className="w-4 h-4 text-orange fill-orange" />
-                            {match.rating}
-                          </span>
-                          <span className="text-sm text-gray-warm">{match.reviewCount} reviews</span>
-                        </div>
-                      </div>
-                      <ArrowRight className="w-5 h-5 text-gray-warm group-hover:text-orange transition-colors" />
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={() => setAppStep('search')}
-                  className="mt-6 text-sm text-gray-warm hover:text-charcoal transition-colors"
-                >
-                  ← Search again
-                </button>
-              </motion.div>
-            )}
-
-            {/* ─── Dashboard Step ─── */}
-            {appStep === 'dashboard' && selectedBusiness && (
-              <motion.div
-                key="dashboard"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                {/* Business Header */}
-                <div className="mb-8">
-                  <h2 className="font-serif text-3xl text-charcoal mb-1">{selectedBusiness.name}</h2>
-                  <p className="text-gray-warm">{selectedBusiness.address}</p>
-                </div>
-
-                {/* Audit Score Card */}
-                <div className="bg-white border border-border-warm rounded-3xl p-8 md:p-10 mb-8">
-                  <div className="flex flex-col md:flex-row items-center gap-10">
-                    {/* Gauge */}
-                    <div className="relative w-44 h-44 flex-shrink-0">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="#E8DFD1" strokeWidth="10" />
-                        <circle
-                          cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10"
-                          strokeLinecap="round" strokeDasharray={`${auditScore * 2.64} 264`}
-                          className={auditScore >= 80 ? 'text-green-600' : auditScore >= 60 ? 'text-orange' : 'text-red-500'}
-                        />
+        {/* ========== OVERVIEW TAB ========== */}
+        {activeTab === "overview" && (
+          <div className="space-y-6">
+            {/* Consolidated Insights Card */}
+            <div className="rounded-2xl bg-gradient-to-br from-white/[0.05] to-white/[0.02] border border-white/10 overflow-hidden">
+              <div className="p-6 sm:p-8">
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {/* Score Gauge */}
+                  <div className="flex flex-col items-center justify-center shrink-0">
+                    <div className="relative w-40 h-40">
+                      <svg className="w-40 h-40 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#scoreGradient)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(score / 100) * 264} 264`} />
+                        <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className={`text-4xl font-bold ${getScoreColor(auditScore)}`}>{auditScore}%</span>
-                        <span className="text-xs text-gray-warm">out of 100</span>
+                        <span className={`text-4xl font-bold ${getScoreColor(score)}`}>{score}</span>
+                        <span className="text-xs text-white/40 mt-1">Audit Score</span>
                       </div>
                     </div>
-                    
-                    {/* Stats */}
-                    <div className="flex-1 w-full">
-                      <h3 className="font-serif text-2xl text-charcoal mb-1">Google Audit Score</h3>
-                      <p className={`text-lg font-medium ${getScoreColor(auditScore)} mb-6`}>{getScoreLabel(auditScore)}</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-cream rounded-2xl p-4">
-                          <div className="text-2xl font-bold text-charcoal">{selectedBusiness.reviewCount}</div>
-                          <div className="text-sm text-gray-warm">Total Reviews</div>
-                        </div>
-                        <div className="bg-cream rounded-2xl p-4">
-                          <div className="text-2xl font-bold text-charcoal">3</div>
-                          <div className="text-sm text-gray-warm">Photos (avg: 23)</div>
-                        </div>
-                        <div className="bg-cream rounded-2xl p-4">
-                          <div className="text-2xl font-bold text-charcoal">1</div>
-                          <div className="text-sm text-gray-warm">Posts This Month</div>
-                        </div>
-                        <div className="bg-cream rounded-2xl p-4">
-                          <div className="text-2xl font-bold text-red-500">15</div>
-                          <div className="text-sm text-gray-warm">Unreplied Reviews</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Two Column: Reviews + Posts */}
-                <div className="grid md:grid-cols-2 gap-6">
-                  
-                  {/* Review Inbox */}
-                  <div className="bg-white border border-border-warm rounded-3xl p-6 md:p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <MessageSquare className="w-5 h-5 text-orange" />
-                      <h3 className="font-serif text-xl text-charcoal">Review Inbox</h3>
-                      <span className="bg-red-100 text-red-600 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        {reviews.length} pending
+                    <div className="mt-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${score >= 60 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
+                        <AlertCircle className="w-3 h-3" />Needs Improvement
                       </span>
                     </div>
-                    
-                    <div className="space-y-5">
-                      {reviews.map((review) => (
-                        <div key={review.id} className="border border-border-warm rounded-2xl p-5">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <span className="font-medium text-charcoal">{review.author}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star key={i} className={`w-3.5 h-3.5 ${i < review.rating ? 'text-orange fill-orange' : 'text-border-warm'}`} />
-                                ))}
-                                <span className="text-xs text-gray-warm ml-2">{review.date}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-warm mb-4 leading-relaxed">{review.text}</p>
-                          
-                          <div className="space-y-3">
-                            {(['professional', 'warm', 'apologetic'] as const).map((tone) => (
-                              <div key={tone} className="bg-cream rounded-xl p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs font-semibold text-orange uppercase tracking-wider">{tone}</span>
-                                  <button
-                                    onClick={() => copyReply(`${review.id}-${tone}`, review.aiReplies[tone])}
-                                    className="text-xs text-orange hover:text-orange-hover flex items-center gap-1 font-medium"
-                                  >
-                                    {copiedId === `${review.id}-${tone}` ? (
-                                      <><Check className="w-3.5 h-3.5" /> Copied</>
-                                    ) : (
-                                      <><Copy className="w-3.5 h-3.5" /> Copy</>
-                                    )}
-                                  </button>
-                                </div>
-                                <p className="text-sm text-charcoal leading-relaxed">{review.aiReplies[tone]}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
 
-                  {/* Weekly Posts */}
-                  <div className="bg-white border border-border-warm rounded-3xl p-6 md:p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <Calendar className="w-5 h-5 text-orange" />
-                      <h3 className="font-serif text-xl text-charcoal">This Week's Posts</h3>
-                    </div>
-                    
-                    <div className="space-y-5">
-                      {posts.map((post) => (
-                        <div key={post.id} className="border border-border-warm rounded-2xl p-5">
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="bg-orange-light text-orange text-xs font-semibold px-3 py-1 rounded-full">
-                              {post.type}
-                            </span>
-                            <span className="font-medium text-charcoal">{post.title}</span>
-                          </div>
-                          <p className="text-sm text-gray-warm mb-4 leading-relaxed">{post.content}</p>
-                          <div className="flex gap-3">
-                            <button className="flex-1 text-sm bg-cream text-charcoal py-2.5 rounded-xl hover:bg-cream-dark transition-colors font-medium">
-                              Copy Text
-                            </button>
-                            <button className="flex-1 text-sm bg-orange text-white py-2.5 rounded-xl hover:bg-orange-hover transition-colors font-medium">
-                              Generate Image
-                            </button>
+                  {/* Stats + Sentiment */}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-semibold mb-4">Google Business Profile Health</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                      {[
+                        { label: "Reviews", value: "142", change: "+8", icon: MessageSquare },
+                        { label: "Rating", value: "4.2", change: "+0.2", icon: Star },
+                        { label: "Response Rate", value: "23%", change: "-12%", icon: Clock, negative: true },
+                        { label: "Photos", value: "12", change: "0", icon: Camera, neutral: true },
+                      ].map((stat, i) => (
+                        <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5">
+                          <div className="flex items-center gap-1.5 mb-2"><stat.icon className="w-3.5 h-3.5 text-white/30" /><span className="text-xs text-white/40">{stat.label}</span></div>
+                          <div className="flex items-end gap-2">
+                            <span className="text-xl font-bold">{stat.value}</span>
+                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-400" : stat.neutral ? "text-white/30" : "text-emerald-400"}`}>{stat.change}</span>
                           </div>
                         </div>
                       ))}
                     </div>
-
-                    <div className="mt-6 p-5 bg-blue-soft/20 rounded-2xl border border-blue-soft/30">
-                      <p className="text-sm font-medium text-charcoal mb-1">🚀 Pro Feature</p>
-                      <p className="text-sm text-gray-warm">
-                        Connect your Google Business Profile to auto-post these directly. 
-                        <button className="text-orange font-medium ml-1 hover:underline">Upgrade for $9.99/mo →</button>
-                      </p>
+                    <div className="space-y-3">
+                      {[
+                        { label: "Positive", pct: positivePct, color: "bg-emerald-500" },
+                        { label: "Neutral", pct: neutralPct, color: "bg-blue-500" },
+                        { label: "Negative", pct: negativePct, color: "bg-red-500" },
+                      ].map((s) => (
+                        <div key={s.label} className="flex items-center gap-3">
+                          <span className="text-xs text-white/40 w-16 shrink-0">{s.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden"><div className={`h-full rounded-full ${s.color} transition-all`} style={{ width: `${s.pct}%` }} /></div>
+                          <span className="text-xs font-medium w-8 text-right">{s.pct}%</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
+
+              {/* AI Action Items */}
+              <div className="border-t border-white/5 p-6 sm:p-8">
+                <div className="flex items-center gap-2 mb-5">
+                  <Sparkles className="w-5 h-5 text-violet-400" />
+                  <h3 className="font-semibold">AI Action Items — Prioritized by Impact</h3>
+                </div>
+                <div className="space-y-3">
+                  {MOCK_ACTION_ITEMS.map((item) => (
+                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors">
+                      <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">{item.title}</h4>
+                        <p className="text-sm text-white/50 mt-1 leading-relaxed">{item.description}</p>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                        <TrendingUp className="w-3 h-3" />{item.impact}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly Pulse */}
+            <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <RefreshCw className="w-5 h-5 text-violet-400" />
+                <h3 className="font-semibold">Weekly Pulse</h3>
+                <span className="text-xs text-white/30 ml-auto">vs last week</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                {MOCK_WEEKLY_CHANGES.map((change, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/5">
+                    <div className="text-xs text-white/40 mb-2">{change.metric}</div>
+                    <div className="flex items-end gap-2"><span className="text-2xl font-bold">{change.current}{change.unit}</span></div>
+                    <div className={`flex items-center gap-1 mt-2 text-xs ${change.change > 0 ? "text-emerald-400" : change.change < 0 ? "text-red-400" : "text-white/30"}`}>
+                      {change.change > 0 ? <TrendingUp className="w-3 h-3" /> : change.change < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                      {change.change > 0 ? "+" : ""}{change.change}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Locked Competitor Teaser */}
+            {userState !== "pro" && (
+              <div className="rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 p-6 relative overflow-hidden">
+                <div className="absolute inset-0 backdrop-blur-[1px]" />
+                <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center"><Target className="w-6 h-6 text-amber-400" /></div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-amber-400">Competitor Intelligence</h3>
+                    <p className="text-sm text-white/50 mt-1">Add up to 3 competitors and see gap analysis, opportunities, and where you're losing customers.</p>
+                  </div>
+                  <button onClick={() => setShowUpgrade(true)} className="shrink-0 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/30 transition-colors flex items-center gap-2">
+                    <Lock className="w-4 h-4" />Unlock with Pro
+                  </button>
+                </div>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
+        )}
+
+        {/* ========== REVIEWS TAB ========== */}
+        {activeTab === "reviews" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Review Inbox</h2>
+                <p className="text-sm text-white/50 mt-1">{userState === "anonymous" ? "Sign in to see all reviews and AI-suggested replies" : "All your reviews with AI-suggested replies"}</p>
+              </div>
+              <div className="flex gap-2">
+                {(["all", "positive", "negative", "neutral"] as const).map((f) => (
+                  <button key={f} onClick={() => setReviewFilter(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${reviewFilter === f ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60"}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-4">
+              {(userState === "anonymous" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
+                <div key={review.id} className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 hover:border-white/10 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center text-sm font-bold text-violet-400">{review.author[0]}</div>
+                      <div>
+                        <div className="font-medium text-sm">{review.author}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex gap-0.5">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className={`w-3 h-3 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-white/10"}`} />
+                            ))}
+                          </div>
+                          <span className="text-xs text-white/30">{review.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-medium ${review.sentiment === "positive" ? "bg-emerald-500/10 text-emerald-400" : review.sentiment === "negative" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"}`}>
+                      {review.sentiment}
+                    </span>
+                  </div>
+                  <p className="text-sm text-white/70 mt-3 leading-relaxed">{review.text}</p>
+                  {userState !== "anonymous" && review.aiReply && (
+                    <div className="mt-4 p-4 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="w-3.5 h-3.5 text-violet-400" /><span className="text-xs font-medium text-violet-400">AI-Suggested Reply</span></div>
+                      <p className="text-sm text-white/60 leading-relaxed">{review.aiReply}</p>
+                      <div className="flex gap-2 mt-3">
+                        <button className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-400 text-xs font-medium hover:bg-violet-500/30 transition-colors">Use This Reply</button>
+                        <button className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs hover:bg-white/10 transition-colors">Regenerate</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {userState === "anonymous" && filteredReviews.length > 1 && (
+              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-8 text-center">
+                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
+                <p className="text-sm text-white/50">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowLogin(true)} className="text-violet-400 hover:underline">Sign in free</button> to unlock all reviews and AI replies.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========== POSTS TAB ========== */}
+        {activeTab === "posts" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Weekly Posts</h2>
+                <p className="text-sm text-white/50 mt-1">{userState === "anonymous" ? "Sign in to see all post ideas and copy them to your GBP" : "AI-generated posts ready to copy to your Google Business Profile"}</p>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {(userState === "anonymous" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
+                <div key={post.id} className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 hover:border-white/10 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2 py-0.5 rounded-md bg-white/5 text-[10px] font-medium text-white/50">{post.type}</span>
+                    <span className="text-xs text-white/30">{post.date}</span>
+                  </div>
+                  <h3 className="font-medium mb-2">{post.title}</h3>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">{post.content}</p>
+                  {userState !== "anonymous" && (
+                    <button onClick={() => copyPost(post.id, post.content)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 hover:bg-white/10 transition-colors">
+                      {copiedPost === post.id ? (<><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy to GBP</>)}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {userState === "anonymous" && MOCK_POSTS.length > 1 && (
+              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-8 text-center">
+                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
+                <p className="text-sm text-white/50">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowLogin(true)} className="text-violet-400 hover:underline">Sign in free</button> to unlock all weekly posts.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========== COMPETITORS TAB ========== */}
+        {activeTab === "competitors" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
+                <p className="text-sm text-white/50 mt-1">{userState === "pro" ? `Track ${competitors.length} of 3 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
+              </div>
+              {userState === "pro" && competitors.length < 3 && (
+                <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/20 text-violet-400 text-sm font-medium hover:bg-violet-500/30 transition-colors">
+                  <Plus className="w-4 h-4" />Add Competitor
+                </button>
+              )}
+            </div>
+
+            {userState !== "pro" ? (
+              <div className="rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-amber-400" /></div>
+                <h3 className="text-lg font-semibold mb-2">Competitor Analysis Locked</h3>
+                <p className="text-sm text-white/50 max-w-md mx-auto mb-6">See how you stack up against competitors. Discover gaps, opportunities, and exactly where you're losing customers.</p>
+                <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-6">
+                  {["Side-by-side score comparison", "Review & rating gap analysis", "Opportunity recommendations"].map((item, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white/60 flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />{item}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90 transition-opacity">Upgrade to Pro — $9/mo</button>
+              </div>
+            ) : competitors.length === 0 ? (
+              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-white/20" /></div>
+                <h3 className="text-lg font-semibold mb-2">No Competitors Added</h3>
+                <p className="text-sm text-white/50 max-w-md mx-auto mb-6">Add up to 3 competitors to see gap analysis and opportunities.</p>
+                <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-violet-500/20 text-violet-400 text-sm font-medium hover:bg-violet-500/30 transition-colors flex items-center gap-2 mx-auto">
+                  <Plus className="w-4 h-4" />Add Your First Competitor
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Comparison Table */}
+                <div className="rounded-2xl bg-white/[0.03] border border-white/5 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/5">
+                          <th className="text-left p-4 text-white/40 font-medium">Metric</th>
+                          <th className="text-center p-4 text-white/40 font-medium">You</th>
+                          {competitors.map((c) => (
+                            <th key={c.id} className="text-center p-4 text-white/40 font-medium">{c.name}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { label: "Audit Score", key: "score", unit: "" },
+                          { label: "Reviews", key: "reviews", unit: "" },
+                          { label: "Rating", key: "rating", unit: "★" },
+                          { label: "Photos", key: "photos", unit: "" },
+                          { label: "Response Rate", key: "responseRate", unit: "%" },
+                        ].map((row) => (
+                          <tr key={row.key} className="border-b border-white/5 last:border-0">
+                            <td className="p-4 text-white/60">{row.label}</td>
+                            <td className="p-4 text-center font-medium">
+                              {row.key === "score" ? score : row.key === "reviews" ? 142 : row.key === "rating" ? "4.2" : row.key === "photos" ? 12 : 23}{row.unit}
+                            </td>
+                            {competitors.map((c) => (
+                              <td key={c.id} className="p-4 text-center">
+                                <span className={`font-medium ${
+                                  row.key === "score" ? (c.score > score ? "text-red-400" : "text-emerald-400") :
+                                  row.key === "reviews" ? (c.reviews > 142 ? "text-red-400" : "text-emerald-400") :
+                                  row.key === "rating" ? (c.rating > 4.2 ? "text-red-400" : "text-emerald-400") :
+                                  row.key === "photos" ? (c.photos > 12 ? "text-red-400" : "text-emerald-400") :
+                                  (c.responseRate > 23 ? "text-red-400" : "text-emerald-400")
+                                }`}>
+                                  {c[row.key as keyof Competitor]}{row.unit}
+                                </span>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Gap Analysis */}
+                <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-violet-400" />Gap Analysis & Opportunities</h3>
+                  <div className="space-y-3">
+                    {competitors.map((comp) => (
+                      <div key={comp.id} className="p-4 rounded-xl bg-white/5 border border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{comp.name}</span>
+                          <button onClick={() => removeCompetitor(comp.id)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                        {comp.reviews > 142 && (
+                          <div className="flex items-start gap-2 text-sm text-white/60">
+                            <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <span>They have <strong className="text-white">{comp.reviews - 142} more reviews</strong> than you. Focus on review generation campaigns.</span>
+                          </div>
+                        )}
+                        {comp.photos > 12 && (
+                          <div className="flex items-start gap-2 text-sm text-white/60 mt-2">
+                            <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <span>They have <strong className="text-white">{comp.photos - 12} more photos</strong>. Add interior, menu, and team photos.</span>
+                          </div>
+                        )}
+                        {comp.score < score && (
+                          <div className="flex items-start gap-2 text-sm text-white/60 mt-2">
+                            <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>Your audit score is <strong className="text-white">{score - comp.score} points higher</strong>. You're ahead on profile optimization!</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========== TOOLS TAB ========== */}
+        {activeTab === "tools" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold">Pro Tools</h2>
+              <p className="text-sm text-white/50 mt-1">
+                {userState === "pro" ? "All tools unlocked. Optimize every aspect of your Google presence." : "Upgrade to Pro to unlock all 6 tools. Preview available below."}
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {PRO_TOOLS.map((tool) => {
+                const Icon = tool.icon;
+                const isLocked = userState !== "pro";
+                return (
+                  <div key={tool.id} className={`rounded-2xl border p-5 relative overflow-hidden transition-all ${
+                    isLocked ? "bg-white/[0.02] border-white/5" : "bg-white/[0.03] border-white/10 hover:border-white/20"
+                  }`}>
+                    {isLocked && (
+                      <div className="absolute inset-0 backdrop-blur-[2px] bg-black/20 flex flex-col items-center justify-center z-10">
+                        <Lock className="w-6 h-6 text-white/30 mb-2" />
+                        <span className="text-xs text-white/40">Pro Only</span>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked ? "bg-white/5" : "bg-violet-500/10"}`}>
+                        <Icon className={`w-5 h-5 ${isLocked ? "text-white/20" : "text-violet-400"}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className={`font-medium text-sm ${isLocked ? "text-white/30" : "text-white"}`}>{tool.name}</h3>
+                        <p className={`text-xs mt-1 leading-relaxed ${isLocked ? "text-white/20" : "text-white/50"}`}>{tool.description}</p>
+                      </div>
+                    </div>
+                    {!isLocked && (
+                      <button className="mt-4 w-full py-2 rounded-lg bg-violet-500/20 text-violet-400 text-xs font-medium hover:bg-violet-500/30 transition-colors">
+                        Open Tool
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {userState !== "pro" && (
+              <div className="rounded-2xl bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/10 p-6 text-center">
+                <h3 className="font-semibold mb-2">Unlock All Pro Tools</h3>
+                <p className="text-sm text-white/50 mb-4">Get the full suite of AI-powered tools for just $9/month.</p>
+                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-sm font-medium hover:opacity-90 transition-opacity">Upgrade to Pro</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ========== MODALS ========== */}
+      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
+      <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
+      <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
+      <FinalChangeModal open={showFinalChange} onClose={() => setShowFinalChange(false)} onConfirm={confirmChangeBusiness} />
+      <AlreadyChangedModal open={showAlreadyChanged} onClose={() => setShowAlreadyChanged(false)} />
+      <AddCompetitorModal open={showAddCompetitor} onClose={() => setShowAddCompetitor(false)} onConfirm={confirmAddCompetitor} compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc} />
+      <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} />
+    </div>
+  );
+}
+
+/* ================================================================
+   MODAL COMPONENTS
+   ================================================================ */
+
+function Modal({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: React.ReactNode; title?: string }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl bg-[#12121a] border border-white/10 p-6 shadow-2xl">
+        {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
+        <button onClick={onClose} className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LoginModal({ open, onClose, onLogin }: { open: boolean; onClose: () => void; onLogin: () => void }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  return (
+    <Modal open={open} onClose={onClose} title="Create Free Account">
+      <p className="text-sm text-white/50 mb-5">Get unlimited audits, all reviews, weekly posts, and competitor tracking.</p>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+          <User className="w-5 h-5 text-white/30 shrink-0" />
+          <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
         </div>
-      )}
-    </main>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+          <Mail className="w-5 h-5 text-white/30 shrink-0" />
+          <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        </div>
+        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Create Free Account</button>
+        <p className="text-xs text-white/30 text-center">No credit card required. Free forever.</p>
+      </div>
+    </Modal>
+  );
+}
+
+function UpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: () => void; onUpgrade: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Upgrade to Pro">
+      <div className="space-y-4">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20">
+          <div className="text-2xl font-bold">$9<span className="text-sm text-white/40 font-normal">/month</span></div>
+          <p className="text-sm text-white/50 mt-1">Billed monthly. Cancel anytime.</p>
+        </div>
+        <ul className="space-y-2">
+          {["Unlimited AI audits", "Competitor gap analysis (3 competitors)", "All 6 Pro Tools unlocked", "2 business profiles", "Weekly pulse email reports", "Priority email support"].map((item, i) => (
+            <li key={i} className="flex items-center gap-2 text-sm text-white/70"><CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0" />{item}</li>
+          ))}
+        </ul>
+        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Upgrade Now — $9/mo</button>
+        <button onClick={onClose} className="w-full py-2 text-sm text-white/40 hover:text-white/60 transition-colors">Maybe later</button>
+      </div>
+    </Modal>
+  );
+}
+
+function AuditLimitModal({ open, onClose, onLogin }: { open: boolean; onClose: () => void; onLogin: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Free Audits Used">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
+        <p className="text-white/70 mb-1">You've used all 2 free audits.</p>
+        <p className="text-sm text-white/50 mb-5">Create a free account to get unlimited audits and unlock all features.</p>
+        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Create Free Account</button>
+        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-white/40 hover:text-white/60 transition-colors">Close</button>
+      </div>
+    </Modal>
+  );
+}
+
+function BusinessLimitModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Business Limit Reached">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-400" /></div>
+        <p className="text-white/70 mb-1">You can associate with max 2 businesses only.</p>
+        <p className="text-sm text-white/50 mb-5">Please open a new account to track additional businesses.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Got it</button>
+      </div>
+    </Modal>
+  );
+}
+
+function FinalChangeModal({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Final Change Warning">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
+        <p className="text-white/70 mb-1">Changing your business is permanent.</p>
+        <p className="text-sm text-white/50 mb-5">You can only change each business slot once. This action cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Cancel</button>
+          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 font-medium text-sm hover:bg-red-500/30 transition-colors">Confirm Change</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function AlreadyChangedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Change Not Allowed">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><Lock className="w-7 h-7 text-red-400" /></div>
+        <p className="text-white/70 mb-1">You've already changed this business.</p>
+        <p className="text-sm text-white/50 mb-5">Each slot can only be changed once. Please open a new account for additional businesses.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Got it</button>
+      </div>
+    </Modal>
+  );
+}
+
+function AddCompetitorModal({ open, onClose, onConfirm, compSearchName, setCompSearchName, compSearchLoc, setCompSearchLoc }: { 
+  open: boolean; onClose: () => void; onConfirm: () => void; 
+  compSearchName: string; setCompSearchName: (v: string) => void;
+  compSearchLoc: string; setCompSearchLoc: (v: string) => void;
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title="Add Competitor">
+      <p className="text-sm text-white/50 mb-4">Search for a competitor by name and city to add them to your gap analysis.</p>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+          <Search className="w-5 h-5 text-white/30 shrink-0" />
+          <input type="text" placeholder="Competitor name" value={compSearchName} onChange={(e) => setCompSearchName(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+          <MapPin className="w-5 h-5 text-white/30 shrink-0" />
+          <input type="text" placeholder="City" value={compSearchLoc} onChange={(e) => setCompSearchLoc(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        </div>
+        <button onClick={onConfirm} disabled={!compSearchName.trim() || !compSearchLoc.trim()} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">Add Competitor</button>
+      </div>
+    </Modal>
+  );
+}
+
+function CompetitorUpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: () => void; onUpgrade: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Competitor Analysis is Pro Only">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-400" /></div>
+        <p className="text-white/70 mb-1">Track up to 3 competitors with gap analysis.</p>
+        <p className="text-sm text-white/50 mb-5">See exactly where you are losing customers and what to fix first.</p>
+        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Upgrade to Pro — $9/mo</button>
+        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-white/40 hover:text-white/60 transition-colors">Maybe later</button>
+      </div>
+    </Modal>
   );
 }
