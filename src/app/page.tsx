@@ -209,21 +209,21 @@ export default function SpotRisePage() {
      ================================================================ */
   if (!hasSearched) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] text-white">
+      <div className="min-h-screen bg-cream text-charcoal">
         {/* Navbar */}
-        <nav className="border-b border-white/5 backdrop-blur-xl sticky top-0 z-50">
+        <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center">
                 <Zap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold tracking-tight">SpotRise</span>
+              <span className="text-xl font-serif font-bold tracking-tight">SpotRise</span>
             </div>
             <div className="flex items-center gap-4">
               {userState === "anonymous" ? (
                 <>
-                  <button onClick={() => setShowLogin(true)} className="text-sm text-white/60 hover:text-white transition-colors">Sign In</button>
-                  <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">Get Started</button>
+                  <button onClick={() => setShowLogin(true)} className="text-sm text-gray-warm hover:text-charcoal transition-colors">Sign In</button>
+                  <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white hover:bg-cream-dark transition-colors">Get Started</button>
                 </>
               ) : (
                 <div className="flex items-center gap-3">
@@ -231,9 +231,9 @@ export default function SpotRisePage() {
                     {userState === "pro" ? "Pro Plan" : "Free Plan"}
                   </span>
                   {userState !== "pro" && (
-                    <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity">Upgrade</button>
+                    <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
                   )}
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><User className="w-4 h-4 text-white/60" /></div>
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><User className="w-4 h-4 text-gray-warm" /></div>
                 </div>
               )}
             </div>
@@ -243,15 +243,15 @@ export default function SpotRisePage() {
         {/* Hero */}
         <section className="pt-20 pb-12 px-4">
           <div className="max-w-6xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-light border border-orange/30 text-orange text-xs font-medium mb-6">
               <Sparkles className="w-3.5 h-3.5" />
               AI-Powered Business Intelligence
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight max-w-5xl mx-auto leading-tight">
+            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight max-w-5xl mx-auto leading-tight">
               Turn Your Google Profile Into{" "}
-              <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-amber-400 bg-clip-text text-transparent">a Customer Magnet</span>
+              <span className="text-orange italic">a Customer Magnet</span>
             </h1>
-            <p className="mt-6 text-lg text-white/50 max-w-3xl mx-auto leading-relaxed">
+            <p className="mt-6 text-lg text-gray-warm max-w-3xl mx-auto leading-relaxed">
               Get a complete AI audit of your Google Business Profile. Discover exactly what's hurting your visibility and what to fix first — in under 60 seconds.
             </p>
 
@@ -263,25 +263,25 @@ export default function SpotRisePage() {
                   You have {2 - auditCount} free audit{2 - auditCount !== 1 ? "s" : ""} remaining
                 </div>
               )}
-              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-cream border border-border-warm backdrop-blur-sm">
                 <div className="flex-1 flex items-center gap-3 px-4 py-3">
-                  <Search className="w-5 h-5 text-white/30 shrink-0" />
+                  <Search className="w-5 h-5 text-gray-warm shrink-0" />
                   <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+                    className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
                 </div>
-                <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-white/10">
-                  <MapPin className="w-5 h-5 text-white/30 shrink-0" />
+                <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-border-warm">
+                  <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
                   <input type="text" placeholder="City (e.g., Austin)" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+                    className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
                 </div>
                 <button onClick={handleSearch} disabled={!businessName.trim() || !location.trim()}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  className="px-6 py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   Audit Now <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/30">
+            <div className="mt-8 flex items-center justify-center gap-6 text-xs text-gray-warm">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />No credit card required</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />2 free audits</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Instant results</span>
@@ -292,22 +292,22 @@ export default function SpotRisePage() {
         {/* Demo Video Placeholder */}
         <section className="pb-20 px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="relative aspect-video rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-4 overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5" />
-              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                <Play className="w-6 h-6 text-white ml-1" />
+            <div className="relative aspect-video rounded-2xl bg-gradient-to-br from-white to-cream border border-border-warm flex flex-col items-center justify-center gap-4 overflow-hidden group cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-light to-orange-light" />
+              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center group-hover:bg-cream-dark transition-colors">
+                <Play className="w-6 h-6 text-charcoal ml-1" />
               </div>
-              <p className="text-white/40 text-sm">Demo video coming soon</p>
+              <p className="text-gray-warm text-sm">Demo video coming soon</p>
             </div>
           </div>
         </section>
 
         {/* Features */}
-        <section className="py-20 border-t border-white/5 px-4">
+        <section className="py-20 border-t border-border-warm px-4">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">Everything You Need to Dominate Local Search</h2>
-              <p className="mt-3 text-white/50">Consulting-grade insights, automated.</p>
+              <h2 className="font-serif text-3xl font-bold">Everything You Need to Dominate Local Search</h2>
+              <p className="mt-3 text-gray-warm">Consulting-grade insights, automated.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {[
@@ -315,10 +315,10 @@ export default function SpotRisePage() {
                 { icon: Target, title: "Competitor Gap Analysis", desc: "Add competitors and see exactly where you're losing and how to catch up." },
                 { icon: Sparkles, title: "Pro Tools Suite", desc: "Description writer, NAP checker, keyword finder, post generator, and more." },
               ].map((f, i) => (
-                <div key={i} className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-4"><f.icon className="w-5 h-5 text-violet-400" /></div>
+                <div key={i} className="p-6 rounded-2xl bg-cream border border-border-warm hover:border-border-warm transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-orange-light flex items-center justify-center mb-4"><f.icon className="w-5 h-5 text-orange" /></div>
                   <h3 className="font-semibold mb-2">{f.title}</h3>
-                  <p className="text-sm text-white/50 leading-relaxed">{f.desc}</p>
+                  <p className="text-sm text-gray-warm leading-relaxed">{f.desc}</p>
                 </div>
               ))}
             </div>
@@ -326,11 +326,11 @@ export default function SpotRisePage() {
         </section>
 
         {/* How it works */}
-        <section className="py-20 border-t border-white/5 px-4">
+        <section className="py-20 border-t border-border-warm px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">How It Works</h2>
-              <p className="mt-3 text-white/50">From search to insights in 3 steps.</p>
+              <h2 className="font-serif text-3xl font-bold">How It Works</h2>
+              <p className="mt-3 text-gray-warm">From search to insights in 3 steps.</p>
             </div>
             <div className="space-y-8">
               {[
@@ -339,12 +339,12 @@ export default function SpotRisePage() {
                 { step: "03", title: "Fix & Grow", desc: "Use our Pro Tools to optimize your profile and watch your visibility soar." },
               ].map((s, i) => (
                 <div key={i} className="flex gap-6 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center shrink-0 border border-violet-500/20">
-                    <span className="text-sm font-bold text-violet-400">{s.step}</span>
+                  <div className="w-12 h-12 rounded-xl bg-orange-light flex items-center justify-center shrink-0 border border-orange/30">
+                    <span className="text-sm font-bold text-orange">{s.step}</span>
                   </div>
                   <div>
                     <h3 className="font-semibold text-lg">{s.title}</h3>
-                    <p className="text-white/50 mt-1">{s.desc}</p>
+                    <p className="text-gray-warm mt-1">{s.desc}</p>
                   </div>
                 </div>
               ))}
@@ -353,48 +353,48 @@ export default function SpotRisePage() {
         </section>
 
         {/* Pricing */}
-        <section className="py-20 border-t border-white/5 px-4">
+        <section className="py-20 border-t border-border-warm px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">Simple Pricing</h2>
-              <p className="mt-3 text-white/50">Start free. Upgrade when you're ready.</p>
+              <h2 className="font-serif text-3xl font-bold">Simple Pricing</h2>
+              <p className="mt-3 text-gray-warm">Start free. Upgrade when you're ready.</p>
             </div>
             <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
-                <div className="text-sm text-white/40 font-medium mb-2">Free</div>
+              <div className="p-6 rounded-2xl bg-cream border border-border-warm">
+                <div className="text-sm text-gray-warm font-medium mb-2">Free</div>
                 <div className="text-3xl font-bold mb-1">$0</div>
-                <div className="text-sm text-white/40 mb-6">Forever free</div>
+                <div className="text-sm text-gray-warm mb-6">Forever free</div>
                 <ul className="space-y-3 mb-6">
                   {["2 full AI audits", "Review sentiment analysis", "Basic action items", "1 business profile"].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-white/60"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />{item}</li>
+                    <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />{item}</li>
                   ))}
                 </ul>
-                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-sm font-medium">Get Started Free</button>
+                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-white hover:bg-cream-dark transition-colors text-sm font-medium">Get Started Free</button>
               </div>
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 relative">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-xs font-medium">Most Popular</div>
-                <div className="text-sm text-violet-400 font-medium mb-2">Pro</div>
-                <div className="text-3xl font-bold mb-1">$9<span className="text-lg text-white/40 font-normal">/mo</span></div>
-                <div className="text-sm text-white/40 mb-6">Billed monthly</div>
+              <div className="p-6 rounded-2xl bg-orange-light border border-orange/30 relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white text-xs font-medium">Most Popular</div>
+                <div className="text-sm text-orange font-medium mb-2">Pro</div>
+                <div className="text-3xl font-bold mb-1">$9<span className="text-lg text-gray-warm font-normal">/mo</span></div>
+                <div className="text-sm text-gray-warm mb-6">Billed monthly</div>
                 <ul className="space-y-3 mb-6">
                   {["Unlimited AI audits", "Competitor gap analysis (3 max)", "All Pro Tools unlocked", "2 business profiles", "Weekly pulse reports", "Priority support"].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-white/80"><CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0" />{item}</li>
+                    <li key={i} className="flex items-center gap-2 text-sm text-charcoal"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
                   ))}
                 </ul>
-                <button onClick={() => setShowUpgrade(true)} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity text-sm font-medium">Upgrade to Pro</button>
+                <button onClick={() => setShowUpgrade(true)} className="w-full py-2.5 rounded-xl bg-orange text-white hover:bg-orange-hover transition-colors text-sm font-medium">Upgrade to Pro</button>
               </div>
             </div>
           </div>
         </section>
 
         {/* Footer */}
-        <footer className="py-8 border-t border-white/5 px-4">
+        <footer className="py-8 border-t border-border-warm px-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
-              <span className="font-semibold">SpotRise</span>
+              <div className="w-6 h-6 rounded-md bg-orange flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
+              <span className="font-serif font-semibold">SpotRise</span>
             </div>
-            <p className="text-xs text-white/30">© 2026 SpotRise. All rights reserved.</p>
+            <p className="text-xs text-gray-warm">© 2026 SpotRise. All rights reserved.</p>
           </div>
         </footer>
 
@@ -410,37 +410,37 @@ export default function SpotRisePage() {
      DASHBOARD
      ================================================================ */
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-cream text-charcoal">
       {/* Navbar */}
-      <nav className="border-b border-white/5 backdrop-blur-xl sticky top-0 z-40">
+      <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center cursor-pointer" onClick={() => setHasSearched(false)}>
+            <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center cursor-pointer" onClick={() => setHasSearched(false)}>
               <Zap className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight cursor-pointer" onClick={() => setHasSearched(false)}>SpotRise</span>
+            <span className="text-xl font-serif font-bold tracking-tight cursor-pointer" onClick={() => setHasSearched(false)}>SpotRise</span>
             {userState !== "anonymous" && currentBusiness?.businessName && (
-              <div className="hidden sm:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
-                <span className="text-white/40">Business {currentSlot} of 2:</span>
-                <span className="text-white/80 font-medium">{currentBusiness.businessName}</span>
+              <div className="hidden sm:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-cream border border-border-warm text-xs">
+                <span className="text-gray-warm">Business {currentSlot} of 2:</span>
+                <span className="text-charcoal font-medium">{currentBusiness.businessName}</span>
                 {!currentBusiness.changed && (
-                  <button onClick={() => handleChangeBusiness(currentSlot)} className="text-violet-400 hover:text-violet-300 ml-1">Change</button>
+                  <button onClick={() => handleChangeBusiness(currentSlot)} className="text-orange hover:text-orange-hover ml-1">Change</button>
                 )}
               </div>
             )}
           </div>
           <div className="flex items-center gap-3">
             {userState === "anonymous" ? (
-              <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">Sign In</button>
+              <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white hover:bg-cream-dark transition-colors">Sign In</button>
             ) : (
               <div className="flex items-center gap-3">
                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
                   {userState === "pro" ? "Pro Plan" : "Free Plan"}
                 </span>
                 {userState !== "pro" && (
-                  <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 transition-opacity">Upgrade</button>
+                  <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
                 )}
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><User className="w-4 h-4 text-white/60" /></div>
+                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><User className="w-4 h-4 text-gray-warm" /></div>
               </div>
             )}
           </div>
@@ -449,7 +449,7 @@ export default function SpotRisePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/5 mb-8 overflow-x-auto">
+        <div className="flex gap-1 p-1 rounded-xl bg-cream border border-border-warm mb-8 overflow-x-auto">
           {[
             { id: "overview" as const, label: "Overview", icon: BarChart3 },
             { id: "reviews" as const, label: "Reviews", icon: MessageSquare },
@@ -458,7 +458,7 @@ export default function SpotRisePage() {
             { id: "tools" as const, label: "Pro Tools", icon: Sparkles },
           ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60"}`}>
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id ? "bg-white text-charcoal" : "text-gray-warm hover:text-gray-warm"}`}>
               <tab.icon className="w-4 h-4" />{tab.label}
             </button>
           ))}
@@ -468,7 +468,7 @@ export default function SpotRisePage() {
         {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Consolidated Insights Card */}
-            <div className="rounded-2xl bg-gradient-to-br from-white/[0.05] to-white/[0.02] border border-white/10 overflow-hidden">
+            <div className="rounded-2xl bg-gradient-to-br from-white to-cream border border-border-warm overflow-hidden">
               <div className="p-6 sm:p-8">
                 <div className="flex flex-col lg:flex-row gap-8">
                   {/* Score Gauge */}
@@ -481,7 +481,7 @@ export default function SpotRisePage() {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className={`text-4xl font-bold ${getScoreColor(score)}`}>{score}</span>
-                        <span className="text-xs text-white/40 mt-1">Audit Score</span>
+                        <span className="text-xs text-gray-warm mt-1">Audit Score</span>
                       </div>
                     </div>
                     <div className="mt-4 text-center">
@@ -493,7 +493,7 @@ export default function SpotRisePage() {
 
                   {/* Stats + Sentiment */}
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold mb-4">Google Business Profile Health</h2>
+                    <h2 className="font-serif text-lg font-semibold mb-4">Google Business Profile Health</h2>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                       {[
                         { label: "Reviews", value: "142", change: "+8", icon: MessageSquare },
@@ -501,11 +501,11 @@ export default function SpotRisePage() {
                         { label: "Response Rate", value: "23%", change: "-12%", icon: Clock, negative: true },
                         { label: "Photos", value: "12", change: "0", icon: Camera, neutral: true },
                       ].map((stat, i) => (
-                        <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5">
-                          <div className="flex items-center gap-1.5 mb-2"><stat.icon className="w-3.5 h-3.5 text-white/30" /><span className="text-xs text-white/40">{stat.label}</span></div>
+                        <div key={i} className="p-3 rounded-xl bg-cream border border-border-warm">
+                          <div className="flex items-center gap-1.5 mb-2"><stat.icon className="w-3.5 h-3.5 text-gray-warm" /><span className="text-xs text-gray-warm">{stat.label}</span></div>
                           <div className="flex items-end gap-2">
                             <span className="text-xl font-bold">{stat.value}</span>
-                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-400" : stat.neutral ? "text-white/30" : "text-emerald-400"}`}>{stat.change}</span>
+                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-400" : stat.neutral ? "text-gray-warm" : "text-emerald-400"}`}>{stat.change}</span>
                           </div>
                         </div>
                       ))}
@@ -517,8 +517,8 @@ export default function SpotRisePage() {
                         { label: "Negative", pct: negativePct, color: "bg-red-500" },
                       ].map((s) => (
                         <div key={s.label} className="flex items-center gap-3">
-                          <span className="text-xs text-white/40 w-16 shrink-0">{s.label}</span>
-                          <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden"><div className={`h-full rounded-full ${s.color} transition-all`} style={{ width: `${s.pct}%` }} /></div>
+                          <span className="text-xs text-gray-warm w-16 shrink-0">{s.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-cream overflow-hidden"><div className={`h-full rounded-full ${s.color} transition-all`} style={{ width: `${s.pct}%` }} /></div>
                           <span className="text-xs font-medium w-8 text-right">{s.pct}%</span>
                         </div>
                       ))}
@@ -528,18 +528,18 @@ export default function SpotRisePage() {
               </div>
 
               {/* AI Action Items */}
-              <div className="border-t border-white/5 p-6 sm:p-8">
+              <div className="border-t border-border-warm p-6 sm:p-8">
                 <div className="flex items-center gap-2 mb-5">
-                  <Sparkles className="w-5 h-5 text-violet-400" />
+                  <Sparkles className="w-5 h-5 text-orange" />
                   <h3 className="font-semibold">AI Action Items — Prioritized by Impact</h3>
                 </div>
                 <div className="space-y-3">
                   {MOCK_ACTION_ITEMS.map((item) => (
-                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors">
+                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-cream border border-border-warm hover:border-border-warm transition-colors">
                       <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm">{item.title}</h4>
-                        <p className="text-sm text-white/50 mt-1 leading-relaxed">{item.description}</p>
+                        <p className="text-sm text-gray-warm mt-1 leading-relaxed">{item.description}</p>
                       </div>
                       <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
                         <TrendingUp className="w-3 h-3" />{item.impact}
@@ -551,18 +551,18 @@ export default function SpotRisePage() {
             </div>
 
             {/* Weekly Pulse */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6">
+            <div className="rounded-2xl bg-cream border border-border-warm p-6">
               <div className="flex items-center gap-2 mb-5">
-                <RefreshCw className="w-5 h-5 text-violet-400" />
+                <RefreshCw className="w-5 h-5 text-orange" />
                 <h3 className="font-semibold">Weekly Pulse</h3>
-                <span className="text-xs text-white/30 ml-auto">vs last week</span>
+                <span className="text-xs text-gray-warm ml-auto">vs last week</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 {MOCK_WEEKLY_CHANGES.map((change, i) => (
-                  <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/5">
-                    <div className="text-xs text-white/40 mb-2">{change.metric}</div>
+                  <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm">
+                    <div className="text-xs text-gray-warm mb-2">{change.metric}</div>
                     <div className="flex items-end gap-2"><span className="text-2xl font-bold">{change.current}{change.unit}</span></div>
-                    <div className={`flex items-center gap-1 mt-2 text-xs ${change.change > 0 ? "text-emerald-400" : change.change < 0 ? "text-red-400" : "text-white/30"}`}>
+                    <div className={`flex items-center gap-1 mt-2 text-xs ${change.change > 0 ? "text-emerald-400" : change.change < 0 ? "text-red-400" : "text-gray-warm"}`}>
                       {change.change > 0 ? <TrendingUp className="w-3 h-3" /> : change.change < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
                       {change.change > 0 ? "+" : ""}{change.change}%
                     </div>
@@ -579,7 +579,7 @@ export default function SpotRisePage() {
                   <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center"><Target className="w-6 h-6 text-amber-400" /></div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-amber-400">Competitor Intelligence</h3>
-                    <p className="text-sm text-white/50 mt-1">Add up to 3 competitors and see gap analysis, opportunities, and where you're losing customers.</p>
+                    <p className="text-sm text-gray-warm mt-1">Add up to 3 competitors and see gap analysis, opportunities, and where you're losing customers.</p>
                   </div>
                   <button onClick={() => setShowUpgrade(true)} className="shrink-0 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/30 transition-colors flex items-center gap-2">
                     <Lock className="w-4 h-4" />Unlock with Pro
@@ -596,12 +596,12 @@ export default function SpotRisePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Review Inbox</h2>
-                <p className="text-sm text-white/50 mt-1">{userState === "anonymous" ? "Sign in to see all reviews and AI-suggested replies" : "All your reviews with AI-suggested replies"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState === "anonymous" ? "Sign in to see all reviews and AI-suggested replies" : "All your reviews with AI-suggested replies"}</p>
               </div>
               <div className="flex gap-2">
                 {(["all", "positive", "negative", "neutral"] as const).map((f) => (
                   <button key={f} onClick={() => setReviewFilter(f)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${reviewFilter === f ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60"}`}>
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${reviewFilter === f ? "bg-white text-charcoal" : "text-gray-warm hover:text-gray-warm"}`}>
                     {f}
                   </button>
                 ))}
@@ -609,19 +609,19 @@ export default function SpotRisePage() {
             </div>
             <div className="space-y-4">
               {(userState === "anonymous" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
-                <div key={review.id} className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 hover:border-white/10 transition-colors">
+                <div key={review.id} className="rounded-2xl bg-cream border border-border-warm p-5 hover:border-border-warm transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center text-sm font-bold text-violet-400">{review.author[0]}</div>
+                      <div className="w-10 h-10 rounded-full bg-orange-light flex items-center justify-center text-sm font-bold text-orange">{review.author[0]}</div>
                       <div>
                         <div className="font-medium text-sm">{review.author}</div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex gap-0.5">
                             {[...Array(5)].map((_, i) => (
-                              <Star key={i} className={`w-3 h-3 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-white/10"}`} />
+                              <Star key={i} className={`w-3 h-3 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-charcoal/10"}`} />
                             ))}
                           </div>
-                          <span className="text-xs text-white/30">{review.date}</span>
+                          <span className="text-xs text-gray-warm">{review.date}</span>
                         </div>
                       </div>
                     </div>
@@ -629,14 +629,14 @@ export default function SpotRisePage() {
                       {review.sentiment}
                     </span>
                   </div>
-                  <p className="text-sm text-white/70 mt-3 leading-relaxed">{review.text}</p>
+                  <p className="text-sm text-gray-warm mt-3 leading-relaxed">{review.text}</p>
                   {userState !== "anonymous" && review.aiReply && (
-                    <div className="mt-4 p-4 rounded-xl bg-violet-500/5 border border-violet-500/10">
-                      <div className="flex items-center gap-2 mb-2"><Sparkles className="w-3.5 h-3.5 text-violet-400" /><span className="text-xs font-medium text-violet-400">AI-Suggested Reply</span></div>
-                      <p className="text-sm text-white/60 leading-relaxed">{review.aiReply}</p>
+                    <div className="mt-4 p-4 rounded-xl bg-orange-light border border-orange/20">
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="w-3.5 h-3.5 text-orange" /><span className="text-xs font-medium text-orange">AI-Suggested Reply</span></div>
+                      <p className="text-sm text-gray-warm leading-relaxed">{review.aiReply}</p>
                       <div className="flex gap-2 mt-3">
-                        <button className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-400 text-xs font-medium hover:bg-violet-500/30 transition-colors">Use This Reply</button>
-                        <button className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs hover:bg-white/10 transition-colors">Regenerate</button>
+                        <button className="px-3 py-1.5 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors">Use This Reply</button>
+                        <button className="px-3 py-1.5 rounded-lg bg-cream text-gray-warm text-xs hover:bg-white transition-colors">Regenerate</button>
                       </div>
                     </div>
                   )}
@@ -644,9 +644,9 @@ export default function SpotRisePage() {
               ))}
             </div>
             {userState === "anonymous" && filteredReviews.length > 1 && (
-              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-8 text-center">
-                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                <p className="text-sm text-white/50">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowLogin(true)} className="text-violet-400 hover:underline">Sign in free</button> to unlock all reviews and AI replies.</p>
+              <div className="rounded-2xl bg-cream border border-border-warm p-8 text-center">
+                <Lock className="w-8 h-8 text-charcoal/20 mx-auto mb-3" />
+                <p className="text-sm text-gray-warm">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all reviews and AI replies.</p>
               </div>
             )}
           </div>
@@ -658,20 +658,20 @@ export default function SpotRisePage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Weekly Posts</h2>
-                <p className="text-sm text-white/50 mt-1">{userState === "anonymous" ? "Sign in to see all post ideas and copy them to your GBP" : "AI-generated posts ready to copy to your Google Business Profile"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState === "anonymous" ? "Sign in to see all post ideas and copy them to your GBP" : "AI-generated posts ready to copy to your Google Business Profile"}</p>
               </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               {(userState === "anonymous" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
-                <div key={post.id} className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 hover:border-white/10 transition-colors">
+                <div key={post.id} className="rounded-2xl bg-cream border border-border-warm p-5 hover:border-border-warm transition-colors">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="px-2 py-0.5 rounded-md bg-white/5 text-[10px] font-medium text-white/50">{post.type}</span>
-                    <span className="text-xs text-white/30">{post.date}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-cream text-[10px] font-medium text-gray-warm">{post.type}</span>
+                    <span className="text-xs text-gray-warm">{post.date}</span>
                   </div>
                   <h3 className="font-medium mb-2">{post.title}</h3>
-                  <p className="text-sm text-white/60 leading-relaxed mb-4">{post.content}</p>
+                  <p className="text-sm text-gray-warm leading-relaxed mb-4">{post.content}</p>
                   {userState !== "anonymous" && (
-                    <button onClick={() => copyPost(post.id, post.content)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 hover:bg-white/10 transition-colors">
+                    <button onClick={() => copyPost(post.id, post.content)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cream text-xs text-gray-warm hover:bg-white transition-colors">
                       {copiedPost === post.id ? (<><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy to GBP</>)}
                     </button>
                   )}
@@ -679,9 +679,9 @@ export default function SpotRisePage() {
               ))}
             </div>
             {userState === "anonymous" && MOCK_POSTS.length > 1 && (
-              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-8 text-center">
-                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                <p className="text-sm text-white/50">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowLogin(true)} className="text-violet-400 hover:underline">Sign in free</button> to unlock all weekly posts.</p>
+              <div className="rounded-2xl bg-cream border border-border-warm p-8 text-center">
+                <Lock className="w-8 h-8 text-charcoal/20 mx-auto mb-3" />
+                <p className="text-sm text-gray-warm">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all weekly posts.</p>
               </div>
             )}
           </div>
@@ -693,10 +693,10 @@ export default function SpotRisePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
-                <p className="text-sm text-white/50 mt-1">{userState === "pro" ? `Track ${competitors.length} of 3 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState === "pro" ? `Track ${competitors.length} of 3 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
               </div>
               {userState === "pro" && competitors.length < 3 && (
-                <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/20 text-violet-400 text-sm font-medium hover:bg-violet-500/30 transition-colors">
+                <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-light text-orange text-sm font-medium hover:bg-orange/20 transition-colors">
                   <Plus className="w-4 h-4" />Add Competitor
                 </button>
               )}
@@ -706,37 +706,37 @@ export default function SpotRisePage() {
               <div className="rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 p-12 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-amber-400" /></div>
                 <h3 className="text-lg font-semibold mb-2">Competitor Analysis Locked</h3>
-                <p className="text-sm text-white/50 max-w-md mx-auto mb-6">See how you stack up against competitors. Discover gaps, opportunities, and exactly where you're losing customers.</p>
+                <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">See how you stack up against competitors. Discover gaps, opportunities, and exactly where you're losing customers.</p>
                 <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-6">
                   {["Side-by-side score comparison", "Review & rating gap analysis", "Opportunity recommendations"].map((item, i) => (
-                    <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white/60 flex items-center gap-2">
+                    <div key={i} className="p-3 rounded-xl bg-cream border border-border-warm text-xs text-gray-warm flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />{item}
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90 transition-opacity">Upgrade to Pro — $9/mo</button>
+                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
               </div>
             ) : competitors.length === 0 ? (
-              <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-12 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-white/20" /></div>
+              <div className="rounded-2xl bg-cream border border-border-warm p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-charcoal/20" /></div>
                 <h3 className="text-lg font-semibold mb-2">No Competitors Added</h3>
-                <p className="text-sm text-white/50 max-w-md mx-auto mb-6">Add up to 3 competitors to see gap analysis and opportunities.</p>
-                <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-violet-500/20 text-violet-400 text-sm font-medium hover:bg-violet-500/30 transition-colors flex items-center gap-2 mx-auto">
+                <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">Add up to 3 competitors to see gap analysis and opportunities.</p>
+                <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-orange-light text-orange text-sm font-medium hover:bg-orange/20 transition-colors flex items-center gap-2 mx-auto">
                   <Plus className="w-4 h-4" />Add Your First Competitor
                 </button>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* Comparison Table */}
-                <div className="rounded-2xl bg-white/[0.03] border border-white/5 overflow-hidden">
+                <div className="rounded-2xl bg-cream border border-border-warm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-white/5">
-                          <th className="text-left p-4 text-white/40 font-medium">Metric</th>
-                          <th className="text-center p-4 text-white/40 font-medium">You</th>
+                        <tr className="border-b border-border-warm">
+                          <th className="text-left p-4 text-gray-warm font-medium">Metric</th>
+                          <th className="text-center p-4 text-gray-warm font-medium">You</th>
                           {competitors.map((c) => (
-                            <th key={c.id} className="text-center p-4 text-white/40 font-medium">{c.name}</th>
+                            <th key={c.id} className="text-center p-4 text-gray-warm font-medium">{c.name}</th>
                           ))}
                         </tr>
                       </thead>
@@ -748,8 +748,8 @@ export default function SpotRisePage() {
                           { label: "Photos", key: "photos", unit: "" },
                           { label: "Response Rate", key: "responseRate", unit: "%" },
                         ].map((row) => (
-                          <tr key={row.key} className="border-b border-white/5 last:border-0">
-                            <td className="p-4 text-white/60">{row.label}</td>
+                          <tr key={row.key} className="border-b border-border-warm last:border-0">
+                            <td className="p-4 text-gray-warm">{row.label}</td>
                             <td className="p-4 text-center font-medium">
                               {row.key === "score" ? score : row.key === "reviews" ? 142 : row.key === "rating" ? "4.2" : row.key === "photos" ? 12 : 23}{row.unit}
                             </td>
@@ -774,31 +774,31 @@ export default function SpotRisePage() {
                 </div>
 
                 {/* Gap Analysis */}
-                <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6">
-                  <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-violet-400" />Gap Analysis & Opportunities</h3>
+                <div className="rounded-2xl bg-cream border border-border-warm p-6">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-orange" />Gap Analysis & Opportunities</h3>
                   <div className="space-y-3">
                     {competitors.map((comp) => (
-                      <div key={comp.id} className="p-4 rounded-xl bg-white/5 border border-white/5">
+                      <div key={comp.id} className="p-4 rounded-xl bg-cream border border-border-warm">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">{comp.name}</span>
-                          <button onClick={() => removeCompetitor(comp.id)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => removeCompetitor(comp.id)} className="text-charcoal/20 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
                         {comp.reviews > 142 && (
-                          <div className="flex items-start gap-2 text-sm text-white/60">
+                          <div className="flex items-start gap-2 text-sm text-gray-warm">
                             <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                            <span>They have <strong className="text-white">{comp.reviews - 142} more reviews</strong> than you. Focus on review generation campaigns.</span>
+                            <span>They have <strong className="text-charcoal">{comp.reviews - 142} more reviews</strong> than you. Focus on review generation campaigns.</span>
                           </div>
                         )}
                         {comp.photos > 12 && (
-                          <div className="flex items-start gap-2 text-sm text-white/60 mt-2">
+                          <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
                             <TrendingDown className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                            <span>They have <strong className="text-white">{comp.photos - 12} more photos</strong>. Add interior, menu, and team photos.</span>
+                            <span>They have <strong className="text-charcoal">{comp.photos - 12} more photos</strong>. Add interior, menu, and team photos.</span>
                           </div>
                         )}
                         {comp.score < score && (
-                          <div className="flex items-start gap-2 text-sm text-white/60 mt-2">
+                          <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
                             <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span>Your audit score is <strong className="text-white">{score - comp.score} points higher</strong>. You're ahead on profile optimization!</span>
+                            <span>Your audit score is <strong className="text-charcoal">{score - comp.score} points higher</strong>. You're ahead on profile optimization!</span>
                           </div>
                         )}
                       </div>
@@ -815,7 +815,7 @@ export default function SpotRisePage() {
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold">Pro Tools</h2>
-              <p className="text-sm text-white/50 mt-1">
+              <p className="text-sm text-gray-warm mt-1">
                 {userState === "pro" ? "All tools unlocked. Optimize every aspect of your Google presence." : "Upgrade to Pro to unlock all 6 tools. Preview available below."}
               </p>
             </div>
@@ -825,25 +825,25 @@ export default function SpotRisePage() {
                 const isLocked = userState !== "pro";
                 return (
                   <div key={tool.id} className={`rounded-2xl border p-5 relative overflow-hidden transition-all ${
-                    isLocked ? "bg-white/[0.02] border-white/5" : "bg-white/[0.03] border-white/10 hover:border-white/20"
+                    isLocked ? "bg-cream border-border-warm" : "bg-cream border-border-warm hover:border-orange/30"
                   }`}>
                     {isLocked && (
-                      <div className="absolute inset-0 backdrop-blur-[2px] bg-black/20 flex flex-col items-center justify-center z-10">
-                        <Lock className="w-6 h-6 text-white/30 mb-2" />
-                        <span className="text-xs text-white/40">Pro Only</span>
+                      <div className="absolute inset-0 backdrop-blur-[2px] bg-cream-dark/60 flex flex-col items-center justify-center z-10">
+                        <Lock className="w-6 h-6 text-gray-warm mb-2" />
+                        <span className="text-xs text-gray-warm">Pro Only</span>
                       </div>
                     )}
                     <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked ? "bg-white/5" : "bg-violet-500/10"}`}>
-                        <Icon className={`w-5 h-5 ${isLocked ? "text-white/20" : "text-violet-400"}`} />
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked ? "bg-cream" : "bg-orange-light"}`}>
+                        <Icon className={`w-5 h-5 ${isLocked ? "text-charcoal/20" : "text-orange"}`} />
                       </div>
                       <div className="min-w-0">
-                        <h3 className={`font-medium text-sm ${isLocked ? "text-white/30" : "text-white"}`}>{tool.name}</h3>
-                        <p className={`text-xs mt-1 leading-relaxed ${isLocked ? "text-white/20" : "text-white/50"}`}>{tool.description}</p>
+                        <h3 className={`font-medium text-sm ${isLocked ? "text-gray-warm" : "text-charcoal"}`}>{tool.name}</h3>
+                        <p className={`text-xs mt-1 leading-relaxed ${isLocked ? "text-charcoal/20" : "text-gray-warm"}`}>{tool.description}</p>
                       </div>
                     </div>
                     {!isLocked && (
-                      <button className="mt-4 w-full py-2 rounded-lg bg-violet-500/20 text-violet-400 text-xs font-medium hover:bg-violet-500/30 transition-colors">
+                      <button className="mt-4 w-full py-2 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors">
                         Open Tool
                       </button>
                     )}
@@ -852,10 +852,10 @@ export default function SpotRisePage() {
               })}
             </div>
             {userState !== "pro" && (
-              <div className="rounded-2xl bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/10 p-6 text-center">
+              <div className="rounded-2xl bg-gradient-to-br from-orange-light to-orange-light border border-orange/20 p-6 text-center">
                 <h3 className="font-semibold mb-2">Unlock All Pro Tools</h3>
-                <p className="text-sm text-white/50 mb-4">Get the full suite of AI-powered tools for just $9/month.</p>
-                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-sm font-medium hover:opacity-90 transition-opacity">Upgrade to Pro</button>
+                <p className="text-sm text-gray-warm mb-4">Get the full suite of AI-powered tools for just $9/month.</p>
+                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro</button>
               </div>
             )}
           </div>
@@ -883,10 +883,10 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-[#12121a] border border-white/10 p-6 shadow-2xl">
-        {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
-        <button onClick={onClose} className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+      <div className="absolute inset-0 bg-charcoal/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl bg-[#12121a] border border-border-warm p-6 shadow-2xl">
+        {title && <h3 className="font-serif text-lg font-semibold mb-4">{title}</h3>}
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-warm hover:text-charcoal transition-colors"><X className="w-5 h-5" /></button>
         {children}
       </div>
     </div>
@@ -898,18 +898,18 @@ function LoginModal({ open, onClose, onLogin }: { open: boolean; onClose: () => 
   const [name, setName] = useState("");
   return (
     <Modal open={open} onClose={onClose} title="Create Free Account">
-      <p className="text-sm text-white/50 mb-5">Get unlimited audits, all reviews, weekly posts, and competitor tracking.</p>
+      <p className="text-sm text-gray-warm mb-5">Get unlimited audits, all reviews, weekly posts, and competitor tracking.</p>
       <div className="space-y-3">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-          <User className="w-5 h-5 text-white/30 shrink-0" />
-          <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+          <User className="w-5 h-5 text-gray-warm shrink-0" />
+          <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-          <Mail className="w-5 h-5 text-white/30 shrink-0" />
-          <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+          <Mail className="w-5 h-5 text-gray-warm shrink-0" />
+          <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
         </div>
-        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Create Free Account</button>
-        <p className="text-xs text-white/30 text-center">No credit card required. Free forever.</p>
+        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Create Free Account</button>
+        <p className="text-xs text-gray-warm text-center">No credit card required. Free forever.</p>
       </div>
     </Modal>
   );
@@ -919,17 +919,17 @@ function UpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: ()
   return (
     <Modal open={open} onClose={onClose} title="Upgrade to Pro">
       <div className="space-y-4">
-        <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20">
-          <div className="text-2xl font-bold">$9<span className="text-sm text-white/40 font-normal">/month</span></div>
-          <p className="text-sm text-white/50 mt-1">Billed monthly. Cancel anytime.</p>
+        <div className="p-4 rounded-xl bg-orange-light border border-orange/30">
+          <div className="text-2xl font-bold">$9<span className="text-sm text-gray-warm font-normal">/month</span></div>
+          <p className="text-sm text-gray-warm mt-1">Billed monthly. Cancel anytime.</p>
         </div>
         <ul className="space-y-2">
           {["Unlimited AI audits", "Competitor gap analysis (3 competitors)", "All 6 Pro Tools unlocked", "2 business profiles", "Weekly pulse email reports", "Priority email support"].map((item, i) => (
-            <li key={i} className="flex items-center gap-2 text-sm text-white/70"><CheckCircle2 className="w-4 h-4 text-violet-400 shrink-0" />{item}</li>
+            <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
           ))}
         </ul>
-        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Upgrade Now — $9/mo</button>
-        <button onClick={onClose} className="w-full py-2 text-sm text-white/40 hover:text-white/60 transition-colors">Maybe later</button>
+        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Upgrade Now — $9/mo</button>
+        <button onClick={onClose} className="w-full py-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
   );
@@ -940,10 +940,10 @@ function AuditLimitModal({ open, onClose, onLogin }: { open: boolean; onClose: (
     <Modal open={open} onClose={onClose} title="Free Audits Used">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
-        <p className="text-white/70 mb-1">You've used all 2 free audits.</p>
-        <p className="text-sm text-white/50 mb-5">Create a free account to get unlimited audits and unlock all features.</p>
-        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Create Free Account</button>
-        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-white/40 hover:text-white/60 transition-colors">Close</button>
+        <p className="text-gray-warm mb-1">You've used all 2 free audits.</p>
+        <p className="text-sm text-gray-warm mb-5">Create a free account to get unlimited audits and unlock all features.</p>
+        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Create Free Account</button>
+        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Close</button>
       </div>
     </Modal>
   );
@@ -954,9 +954,9 @@ function BusinessLimitModal({ open, onClose }: { open: boolean; onClose: () => v
     <Modal open={open} onClose={onClose} title="Business Limit Reached">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-400" /></div>
-        <p className="text-white/70 mb-1">You can associate with max 2 businesses only.</p>
-        <p className="text-sm text-white/50 mb-5">Please open a new account to track additional businesses.</p>
-        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Got it</button>
+        <p className="text-gray-warm mb-1">You can associate with max 2 businesses only.</p>
+        <p className="text-sm text-gray-warm mb-5">Please open a new account to track additional businesses.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Got it</button>
       </div>
     </Modal>
   );
@@ -967,10 +967,10 @@ function FinalChangeModal({ open, onClose, onConfirm }: { open: boolean; onClose
     <Modal open={open} onClose={onClose} title="Final Change Warning">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
-        <p className="text-white/70 mb-1">Changing your business is permanent.</p>
-        <p className="text-sm text-white/50 mb-5">You can only change each business slot once. This action cannot be undone.</p>
+        <p className="text-gray-warm mb-1">Changing your business is permanent.</p>
+        <p className="text-sm text-gray-warm mb-5">You can only change each business slot once. This action cannot be undone.</p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Cancel</button>
           <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 font-medium text-sm hover:bg-red-500/30 transition-colors">Confirm Change</button>
         </div>
       </div>
@@ -983,9 +983,9 @@ function AlreadyChangedModal({ open, onClose }: { open: boolean; onClose: () => 
     <Modal open={open} onClose={onClose} title="Change Not Allowed">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><Lock className="w-7 h-7 text-red-400" /></div>
-        <p className="text-white/70 mb-1">You've already changed this business.</p>
-        <p className="text-sm text-white/50 mb-5">Each slot can only be changed once. Please open a new account for additional businesses.</p>
-        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">Got it</button>
+        <p className="text-gray-warm mb-1">You've already changed this business.</p>
+        <p className="text-sm text-gray-warm mb-5">Each slot can only be changed once. Please open a new account for additional businesses.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Got it</button>
       </div>
     </Modal>
   );
@@ -998,17 +998,17 @@ function AddCompetitorModal({ open, onClose, onConfirm, compSearchName, setCompS
 }) {
   return (
     <Modal open={open} onClose={onClose} title="Add Competitor">
-      <p className="text-sm text-white/50 mb-4">Search for a competitor by name and city to add them to your gap analysis.</p>
+      <p className="text-sm text-gray-warm mb-4">Search for a competitor by name and city to add them to your gap analysis.</p>
       <div className="space-y-3">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-          <Search className="w-5 h-5 text-white/30 shrink-0" />
-          <input type="text" placeholder="Competitor name" value={compSearchName} onChange={(e) => setCompSearchName(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+          <Search className="w-5 h-5 text-gray-warm shrink-0" />
+          <input type="text" placeholder="Competitor name" value={compSearchName} onChange={(e) => setCompSearchName(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-          <MapPin className="w-5 h-5 text-white/30 shrink-0" />
-          <input type="text" placeholder="City" value={compSearchLoc} onChange={(e) => setCompSearchLoc(e.target.value)} className="w-full bg-transparent text-white placeholder:text-white/30 outline-none text-sm" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+          <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
+          <input type="text" placeholder="City" value={compSearchLoc} onChange={(e) => setCompSearchLoc(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
         </div>
-        <button onClick={onConfirm} disabled={!compSearchName.trim() || !compSearchLoc.trim()} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">Add Competitor</button>
+        <button onClick={onConfirm} disabled={!compSearchName.trim() || !compSearchLoc.trim()} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Add Competitor</button>
       </div>
     </Modal>
   );
@@ -1019,10 +1019,10 @@ function CompetitorUpgradeModal({ open, onClose, onUpgrade }: { open: boolean; o
     <Modal open={open} onClose={onClose} title="Competitor Analysis is Pro Only">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-400" /></div>
-        <p className="text-white/70 mb-1">Track up to 3 competitors with gap analysis.</p>
-        <p className="text-sm text-white/50 mb-5">See exactly where you are losing customers and what to fix first.</p>
-        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium text-sm hover:opacity-90 transition-opacity">Upgrade to Pro — $9/mo</button>
-        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-white/40 hover:text-white/60 transition-colors">Maybe later</button>
+        <p className="text-gray-warm mb-1">Track up to 3 competitors with gap analysis.</p>
+        <p className="text-sm text-gray-warm mb-5">See exactly where you are losing customers and what to fix first.</p>
+        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
+        <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
   );
