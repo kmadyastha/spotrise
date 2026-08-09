@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   Search, Star, TrendingUp, TrendingDown, Minus, Lock, Zap, ChevronRight, ChevronDown, ChevronUp, X, User, Mail,
   ArrowRight, Play, CheckCircle2, AlertCircle, MessageSquare, Calendar, BarChart3, Target,
@@ -114,7 +115,10 @@ const PRO_TOOLS = [
    COMPONENT
    ================================================================ */
 export default function SpotRisePage() {
+  const supabase = useMemo(() => createClient(), []);
   const [userState, setUserState] = useState<UserState>("anonymous");
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [location, setLocation] = useState("");
@@ -179,7 +183,38 @@ export default function SpotRisePage() {
     setActiveTab("overview");
   }, [businessName, location, userState, auditCount, businessSlots]);
 
-  const handleLogin = () => { setUserState("free"); setShowLogin(false); };
+  // Real auth: check for an existing session on load, then keep listening
+  // for sign-in / sign-out so the whole app reacts automatically —
+  // no page refresh needed after clicking the magic link.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUserEmail(session.user.email ?? null);
+        setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+      }
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUserEmail(session.user.email ?? null);
+        setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+      } else {
+        setUserEmail(null);
+        setUserState("anonymous");
+      }
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, [supabase]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUserState("anonymous");
+    setUserEmail(null);
+    setHasSearched(false);
+  };
+
   const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
 
   const handleChangeBusiness = (slotId: number) => {
@@ -288,9 +323,9 @@ export default function SpotRisePage() {
             </p>
 
             {/* Search Box */}
-            <div className="mt-10 max-w-2xl mx-auto">
+            <div id="hero-search" className="mt-10 max-w-2xl mx-auto scroll-mt-24">
               {userState === "anonymous" && auditCount > 0 && (
-                <div className="mb-3 text-sm text-amber-400 flex items-center justify-center gap-2">
+                <div className="mb-3 text-sm text-amber-600 flex items-center justify-center gap-2">
                   <AlertCircle className="w-4 h-4" />
                   You have {2 - auditCount} free audit{2 - auditCount !== 1 ? "s" : ""} remaining
                 </div>
@@ -426,7 +461,7 @@ export default function SpotRisePage() {
                     <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
                   ))}
                 </ul>
-                <button onClick={() => setShowLogin(true)} className="w-full py-2.5 rounded-xl bg-cream border border-border-warm hover:bg-cream-dark transition-colors text-sm font-medium">Get Started Free</button>
+                <button onClick={() => userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="w-full py-2.5 rounded-xl bg-cream border border-border-warm hover:bg-cream-dark transition-colors text-sm font-medium">{userState === "anonymous" ? "Get Started Free" : "Run an Audit"}</button>
               </div>
               <div className="p-6 rounded-2xl bg-white border-2 border-orange shadow-md relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white text-xs font-medium">Most Popular</div>
@@ -473,7 +508,7 @@ export default function SpotRisePage() {
               Are you ready to dominate <span className="italic text-orange">local search</span> and generate more leads for your business?
             </h2>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button onClick={() => setShowLogin(true)} className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors">Get started</button>
+              <button onClick={() => userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors">{userState === "anonymous" ? "Get started" : "Run an audit"}</button>
               <button onClick={() => document.getElementById("video-demo")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-charcoal px-8 py-3.5 rounded-full font-medium hover:bg-cream-dark transition-colors">View Demo</button>
             </div>
           </div>
@@ -514,7 +549,7 @@ export default function SpotRisePage() {
         </footer>
 
         {/* Modals */}
-        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
         <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       </div>
@@ -555,7 +590,9 @@ export default function SpotRisePage() {
                 {userState !== "pro" && (
                   <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
                 )}
-                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><User className="w-4 h-4 text-gray-warm" /></div>
+                <button onClick={handleSignOut} title={userEmail ?? undefined} className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-cream-dark transition-colors" aria-label="Sign out">
+                  <User className="w-4 h-4 text-gray-warm" />
+                </button>
               </div>
             )}
           </div>
@@ -979,7 +1016,7 @@ export default function SpotRisePage() {
       </div>
 
       {/* ========== MODALS ========== */}
-      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
       <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
@@ -1039,7 +1076,7 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-charcoal/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-[#12121a] border border-border-warm p-6 shadow-2xl">
+      <div className="relative w-full max-w-md rounded-2xl bg-white border border-border-warm p-6 shadow-2xl">
         {title && <h3 className="font-serif text-lg font-semibold mb-4">{title}</h3>}
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-warm hover:text-charcoal transition-colors"><X className="w-5 h-5" /></button>
         {children}
@@ -1048,24 +1085,51 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
   );
 }
 
-function LoginModal({ open, onClose, onLogin }: { open: boolean; onClose: () => void; onLogin: () => void }) {
+function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+
+  const handleSendLink = async () => {
+    if (!email.trim()) return;
+    setStatus("sending");
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    setStatus(error ? "error" : "sent");
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="Create Free Account">
-      <p className="text-sm text-gray-warm mb-5">Get unlimited audits, all reviews, weekly posts, and competitor tracking.</p>
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
-          <User className="w-5 h-5 text-gray-warm shrink-0" />
-          <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+    <Modal open={open} onClose={onClose} title="Sign In / Create Account">
+      {status === "sent" ? (
+        <div className="text-center py-4">
+          <div className="w-12 h-12 rounded-full bg-orange-light flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-6 h-6 text-orange" />
+          </div>
+          <h3 className="font-serif text-lg font-semibold mb-2">You've got mail 📬</h3>
+          <p className="text-sm text-gray-warm">We sent a sign-in link to <strong className="text-charcoal">{email}</strong> — open it on this device to jump straight back in. You can close this window.</p>
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
-          <Mail className="w-5 h-5 text-gray-warm shrink-0" />
-          <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
-        </div>
-        <button onClick={onLogin} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Create Free Account</button>
-        <p className="text-xs text-gray-warm text-center">No credit card required. Free forever.</p>
-      </div>
+      ) : (
+        <>
+          <p className="text-sm text-gray-warm mb-5">Get unlimited audits, all reviews, weekly posts, and competitor tracking.</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+              <Mail className="w-5 h-5 text-gray-warm shrink-0" />
+              <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
+                className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+            </div>
+            {status === "error" && (
+              <p className="text-xs text-red-500">Something went wrong sending the link. Try again.</p>
+            )}
+            <button onClick={handleSendLink} disabled={!email.trim() || status === "sending"}
+              className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {status === "sending" ? "Sending..." : "Send Sign-In Link"}
+            </button>
+            <p className="text-xs text-gray-warm text-center">No password needed. No credit card required.</p>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
@@ -1094,7 +1158,7 @@ function AuditLimitModal({ open, onClose, onLogin }: { open: boolean; onClose: (
   return (
     <Modal open={open} onClose={onClose} title="Free Audits Used">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-600" /></div>
         <p className="text-gray-warm mb-1">You've used all 2 free audits.</p>
         <p className="text-sm text-gray-warm mb-5">Create a free account to get unlimited audits and unlock all features.</p>
         <button onClick={onLogin} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Create Free Account</button>
@@ -1108,7 +1172,7 @@ function BusinessLimitModal({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Modal open={open} onClose={onClose} title="Business Limit Reached">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-400" /></div>
+        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-500" /></div>
         <p className="text-gray-warm mb-1">You can associate with max 2 businesses only.</p>
         <p className="text-sm text-gray-warm mb-5">Please open a new account to track additional businesses.</p>
         <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Got it</button>
@@ -1121,12 +1185,12 @@ function FinalChangeModal({ open, onClose, onConfirm }: { open: boolean; onClose
   return (
     <Modal open={open} onClose={onClose} title="Final Change Warning">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-400" /></div>
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-amber-600" /></div>
         <p className="text-gray-warm mb-1">Changing your business is permanent.</p>
         <p className="text-sm text-gray-warm mb-5">You can only change each business slot once. This action cannot be undone.</p>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 font-medium text-sm hover:bg-red-500/30 transition-colors">Confirm Change</button>
+          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors">Confirm Change</button>
         </div>
       </div>
     </Modal>
@@ -1137,7 +1201,7 @@ function AlreadyChangedModal({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Modal open={open} onClose={onClose} title="Change Not Allowed">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4"><Lock className="w-7 h-7 text-red-400" /></div>
+        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"><Lock className="w-7 h-7 text-red-500" /></div>
         <p className="text-gray-warm mb-1">You've already changed this business.</p>
         <p className="text-sm text-gray-warm mb-5">Each slot can only be changed once. Please open a new account for additional businesses.</p>
         <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Got it</button>
@@ -1173,7 +1237,7 @@ function CompetitorUpgradeModal({ open, onClose, onUpgrade }: { open: boolean; o
   return (
     <Modal open={open} onClose={onClose} title="Competitor Analysis is Pro Only">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-400" /></div>
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-600" /></div>
         <p className="text-gray-warm mb-1">Track up to 3 competitors with gap analysis.</p>
         <p className="text-sm text-gray-warm mb-5">See exactly where you are losing customers and what to fix first.</p>
         <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
