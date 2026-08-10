@@ -122,7 +122,13 @@ export default function SpotRisePage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [location, setLocation] = useState("");
-  const [auditCount, setAuditCount] = useState(0);
+
+  // Real search flow state
+  const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "confirming" | "locked" | "error">("idle");
+  const [searchMatches, setSearchMatches] = useState<{ placeId: string; name: string; address: string; rating: number | null; reviewCount: number }[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [liveSnapshot, setLiveSnapshot] = useState<{ score: number; reviewsCount: number; rating: number; photoCount: number } | null>(null);
+
   const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
     { id: 1, businessName: null, location: null, changed: false },
     { id: 2, businessName: null, location: null, changed: false },
@@ -155,7 +161,9 @@ export default function SpotRisePage() {
 
   /* Derived */
   const filteredReviews = MOCK_REVIEWS.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
-  const score = 67;
+  // Real score/stats once a search has been confirmed; falls back to
+  // mock numbers only for the locked teaser (nothing real to show there).
+  const score = liveSnapshot?.score ?? 67;
   const positivePct = 62;
   const neutralPct = 18;
   const negativePct = 20;
@@ -163,25 +171,108 @@ export default function SpotRisePage() {
   const currentBusiness = businessSlots.find((s) => s.id === currentSlot);
 
   /* Handlers */
+  const runSearch = useCallback(async (name: string, loc: string) => {
+    setSearchStatus("searching");
+    setSearchError(null);
+    try {
+      const res = await fetch("/api/search-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName: name, location: loc }),
+      });
+
+      if (res.status === 401) {
+        // Not logged in — remember what they were searching for, then
+        // prompt login. We resume automatically once they're back.
+        sessionStorage.setItem("pendingSearch", JSON.stringify({ name, loc }));
+        setSearchStatus("idle");
+        setShowLogin(true);
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("search-business error:", data);
+        setSearchStatus("error");
+        setSearchError(
+          data.error === "already_linked" ? "You already have a linked business. Manage it from your dashboard." :
+          data.error === "places_api_error" ? "Google search failed. Try again in a moment." :
+          data.error === "unexpected_error" ? `Unexpected error: ${data.details}` :
+          "Something went wrong. Try again."
+        );
+        return;
+      }
+
+      if (data.locked) {
+        setSearchStatus("locked");
+        setHasSearched(true);
+        return;
+      }
+
+      setSearchMatches(data.matches);
+      setSearchStatus("confirming");
+    } catch {
+      setSearchStatus("error");
+      setSearchError("Something went wrong. Try again.");
+    }
+  }, []);
+
   const handleSearch = useCallback(() => {
     if (!businessName.trim() || !location.trim()) return;
-    if (userState === "anonymous") {
-      if (auditCount >= 2) { setShowAuditLimit(true); return; }
-      setAuditCount((c) => c + 1);
+    runSearch(businessName, location);
+  }, [businessName, location, runSearch]);
+
+  const handleConfirmBusiness = useCallback(async (placeId: string, name: string) => {
+    setSearchStatus("searching");
+    try {
+      const res = await fetch("/api/confirm-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placeId, name }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("confirm-business error:", data);
+        setSearchStatus("error");
+        setSearchError(
+          data.error === "locked" ? "You've used both free audits — upgrade to link a business." :
+          data.error === "places_details_error" ? "Couldn't fetch details from Google for that business. Try a different match." :
+          data.error === "db_error" ? `Save failed: ${data.details}` :
+          data.error === "unexpected_error" ? `Unexpected error: ${data.details}` :
+          "Something went wrong confirming that business."
+        );
+        return;
+      }
+
+      setLiveSnapshot({
+        score: data.snapshot.score,
+        reviewsCount: data.snapshot.reviews_count,
+        rating: data.snapshot.rating,
+        photoCount: data.snapshot.photo_count,
+      });
+      setSearchStatus("idle");
+      setHasSearched(true);
+      setActiveTab("overview");
+    } catch {
+      setSearchStatus("error");
+      setSearchError("Something went wrong confirming that business.");
     }
-    if (userState !== "anonymous") {
-      const emptySlot = businessSlots.find((s) => s.businessName === null);
-      const existingSlot = businessSlots.find((s) => s.businessName?.toLowerCase() === businessName.toLowerCase());
-      if (existingSlot) { setCurrentSlot(existingSlot.id); }
-      else if (emptySlot) {
-        const updated = businessSlots.map((s) => s.id === emptySlot.id ? { ...s, businessName, location } : s);
-        setBusinessSlots(updated);
-        setCurrentSlot(emptySlot.id);
-      } else { setShowBusinessLimit(true); return; }
+  }, []);
+
+  // Resume a search that was interrupted by the login prompt — fires
+  // once we detect a real session (see the auth effect below).
+  const resumePendingSearch = useCallback(() => {
+    const pending = sessionStorage.getItem("pendingSearch");
+    if (pending) {
+      sessionStorage.removeItem("pendingSearch");
+      const { name, loc } = JSON.parse(pending);
+      setBusinessName(name);
+      setLocation(loc);
+      runSearch(name, loc);
     }
-    setHasSearched(true);
-    setActiveTab("overview");
-  }, [businessName, location, userState, auditCount, businessSlots]);
+  }, [runSearch]);
 
   // Real auth: check for an existing session on load, then keep listening
   // for sign-in / sign-out so the whole app reacts automatically —
@@ -191,14 +282,16 @@ export default function SpotRisePage() {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
         setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+        resumePendingSearch();
       }
       setAuthLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
         setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+        if (event === "SIGNED_IN") resumePendingSearch();
       } else {
         setUserEmail(null);
         setUserState("anonymous");
@@ -206,7 +299,7 @@ export default function SpotRisePage() {
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, resumePendingSearch]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -275,6 +368,59 @@ export default function SpotRisePage() {
   };
 
   /* ================================================================
+     BUSINESS CONFIRMATION — real Places results, user picks theirs
+     ================================================================ */
+  if (searchStatus === "confirming" || searchStatus === "searching" || searchStatus === "error") {
+    return (
+      <div className="min-h-screen bg-cream text-charcoal flex flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-lg">
+          <button onClick={() => setSearchStatus("idle")} className="text-sm text-gray-warm hover:text-charcoal mb-6 flex items-center gap-1">
+            <ChevronRight className="w-4 h-4 rotate-180" />Back
+          </button>
+
+          {searchStatus === "searching" && <SearchingProgress />}
+
+          {searchStatus === "error" && (
+            <div className="rounded-2xl bg-white border border-red-200 shadow-sm p-8 text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+              <p className="text-charcoal font-medium mb-1">Couldn't complete that search</p>
+              <p className="text-sm text-gray-warm mb-5">{searchError}</p>
+              <button onClick={() => setSearchStatus("idle")} className="px-5 py-2 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Try again</button>
+            </div>
+          )}
+
+          {searchStatus === "confirming" && (
+            <>
+              <h1 className="font-serif text-2xl font-bold mb-2">Which one is your business?</h1>
+              <p className="text-sm text-gray-warm mb-6">We found {searchMatches.length} match{searchMatches.length !== 1 ? "es" : ""} for "{businessName}" near {location}.</p>
+              <div className="space-y-3">
+                {searchMatches.map((m) => (
+                  <button key={m.placeId} onClick={() => handleConfirmBusiness(m.placeId, m.name)}
+                    className="w-full text-left p-4 rounded-2xl bg-white border border-border-warm shadow-sm hover:border-orange/40 hover:shadow-md transition-all flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{m.name}</div>
+                      <div className="text-xs text-gray-warm mt-1 truncate">{m.address}</div>
+                      {m.rating && (
+                        <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-warm">
+                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />{m.rating} ({m.reviewCount} reviews)
+                        </div>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-orange-light text-orange font-medium">This is mine</span>
+                  </button>
+                ))}
+                {searchMatches.length === 0 && (
+                  <div className="text-center py-8 text-sm text-gray-warm">No matches found — try a different spelling or add more of the address.</div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ================================================================
      LANDING PAGE
      ================================================================ */
   if (!hasSearched) {
@@ -324,12 +470,6 @@ export default function SpotRisePage() {
 
             {/* Search Box */}
             <div id="hero-search" className="mt-10 max-w-2xl mx-auto scroll-mt-24">
-              {userState === "anonymous" && auditCount > 0 && (
-                <div className="mb-3 text-sm text-amber-600 flex items-center justify-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  You have {2 - auditCount} free audit{2 - auditCount !== 1 ? "s" : ""} remaining
-                </div>
-              )}
               <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white border-2 border-border-warm shadow-sm">
                 <div className="flex-1 flex items-center gap-3 px-4 py-3">
                   <Search className="w-5 h-5 text-gray-warm shrink-0" />
@@ -617,7 +757,17 @@ export default function SpotRisePage() {
         </div>
 
         {/* ========== OVERVIEW TAB ========== */}
-        {activeTab === "overview" && (
+        {activeTab === "overview" && searchStatus === "locked" && (
+          <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-orange-light flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-orange" /></div>
+            <h2 className="font-serif text-xl font-bold mb-2">You've used both free audits</h2>
+            <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">
+              Upgrade to Pro to link a business permanently, unlock full reviews and posts, and get a fresh audit sent to your inbox every Monday.
+            </p>
+            <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
+          </div>
+        )}
+        {activeTab === "overview" && searchStatus !== "locked" && (
           <div className="space-y-6">
             {/* Consolidated Insights Card */}
             <div className="rounded-2xl bg-white border border-border-warm shadow-sm overflow-hidden">
@@ -648,16 +798,16 @@ export default function SpotRisePage() {
                     <h2 className="font-serif text-lg font-semibold mb-4">Google Business Profile Health</h2>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                       {[
-                        { label: "Reviews", value: "142", change: "+8", icon: MessageSquare },
-                        { label: "Rating", value: "4.2", change: "+0.2", icon: Star },
+                        { label: "Reviews", value: liveSnapshot ? String(liveSnapshot.reviewsCount) : "142", change: liveSnapshot ? "" : "+8", icon: MessageSquare },
+                        { label: "Rating", value: liveSnapshot ? liveSnapshot.rating.toFixed(1) : "4.2", change: liveSnapshot ? "" : "+0.2", icon: Star },
                         { label: "Response Rate", value: "23%", change: "-12%", icon: Clock, negative: true },
-                        { label: "Photos", value: "12", change: "0", icon: Camera, neutral: true },
+                        { label: "Photos", value: liveSnapshot ? String(liveSnapshot.photoCount) : "12", change: liveSnapshot ? "" : "0", icon: Camera, neutral: true },
                       ].map((stat, i) => (
                         <div key={i} className="p-3 rounded-xl bg-cream border border-border-warm">
                           <div className="flex items-center gap-1.5 mb-2"><stat.icon className="w-3.5 h-3.5 text-gray-warm" /><span className="text-xs text-gray-warm">{stat.label}</span></div>
                           <div className="flex items-end gap-2">
                             <span className="text-xl font-bold">{stat.value}</span>
-                            <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-500" : stat.neutral ? "text-gray-warm" : "text-emerald-600"}`}>{stat.change}</span>
+                            {stat.change && <span className={`text-xs mb-0.5 ${stat.negative ? "text-red-500" : stat.neutral ? "text-gray-warm" : "text-emerald-600"}`}>{stat.change}</span>}
                           </div>
                         </div>
                       ))}
@@ -1038,6 +1188,35 @@ export default function SpotRisePage() {
    and how-it-works-2.png — replace with the final audit/report pages
    once those redesigns are locked.
    ================================================================ */
+/* ================================================================
+   SEARCHING PROGRESS — cycling steps so the wait feels active
+   ================================================================ */
+function SearchingProgress() {
+  const steps = ["Searching Google Maps...", "Comparing nearby listings...", "Almost there..."];
+  const [step, setStep] = useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => setStep((s) => Math.min(s + 1, steps.length - 1)), 1100);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="text-center py-16">
+      <div className="relative w-16 h-16 mx-auto mb-6">
+        <div className="absolute inset-0 rounded-full border-4 border-orange-light" />
+        <div className="absolute inset-0 rounded-full border-4 border-orange border-t-transparent animate-spin" />
+        <Search className="w-6 h-6 text-orange absolute inset-0 m-auto" />
+      </div>
+      <p className="text-charcoal font-medium transition-all">{steps[step]}</p>
+      <div className="flex items-center justify-center gap-1.5 mt-4">
+        {steps.map((_, i) => (
+          <div key={i} className={`h-1.5 rounded-full transition-all ${i <= step ? "w-6 bg-orange" : "w-1.5 bg-border-warm"}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HowItWorksMarquee() {
   const slides = [
     { src: "/how-it-works-1.png", alt: "Audit score overview" },
