@@ -130,9 +130,10 @@ export default function SpotRisePage() {
   const [liveSnapshot, setLiveSnapshot] = useState<{
     score: number; reviewsCount: number; rating: number; photoCount: number; name: string; address: string;
     sentiment: { positive: number; neutral: number; negative: number };
+    analysisReviewCount: number;
   } | null>(null);
   const [liveActionItems, setLiveActionItems] = useState<{ id: number; priority: string; title: string; description: string; impact: string }[]>([]);
-  const [liveReviews, setLiveReviews] = useState<{ id: number; author: string; rating: number; text: string; date: string; sentiment: "positive" | "neutral" | "negative"; aiReply?: string }[]>([]);
+  const [liveReviews, setLiveReviews] = useState<{ id: number; dbId: string; author: string; rating: number; text: string; date: string; sentiment: "positive" | "neutral" | "negative"; aiReply?: string }[]>([]);
 
   const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
     { id: 1, businessName: null, location: null, changed: false },
@@ -215,6 +216,12 @@ export default function SpotRisePage() {
       }
 
       if (data.locked) {
+        // Clear out anything left over from a previous successful confirm
+        // — otherwise Reviews/Posts/etc keep showing old data forever,
+        // since they don't independently know the account is now locked.
+        setLiveSnapshot(null);
+        setLiveActionItems([]);
+        setLiveReviews([]);
         setSearchStatus("locked");
         setHasSearched(true);
         return;
@@ -264,6 +271,7 @@ export default function SpotRisePage() {
         name,
         address,
         sentiment: data.snapshot.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
+        analysisReviewCount: data.analysisReviewCount ?? 0,
       });
       setLiveActionItems(
         (data.actionItems ?? []).map((item: any, i: number) => ({ id: i, ...item }))
@@ -271,6 +279,7 @@ export default function SpotRisePage() {
       setLiveReviews(
         (data.reviews ?? []).map((r: any, i: number) => ({
           id: i,
+          dbId: r.id,
           author: r.author,
           rating: r.rating,
           text: r.text,
@@ -391,6 +400,28 @@ export default function SpotRisePage() {
     setTimeout(() => setCopiedReview(null), 2000);
   };
 
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const handleRegenerateReply = async (displayId: number, dbId: string, text: string, rating: number) => {
+    setRegeneratingId(displayId);
+    try {
+      const res = await fetch("/api/regenerate-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId: dbId, businessName: liveSnapshot?.name ?? "", reviewText: text, reviewRating: rating }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLiveReviews((prev) => prev.map((r) => r.id === displayId ? { ...r, aiReply: data.reply } : r));
+      } else {
+        console.error("regenerate-reply error:", data);
+      }
+    } catch (err) {
+      console.error("regenerate-reply failed:", err);
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   const getScoreColor = (s: number) => { if (s >= 80) return "text-emerald-600"; if (s >= 60) return "text-amber-500"; return "text-red-500"; };
   const getPriorityColor = (p: string) => {
     if (p === "high") return "bg-red-100 text-red-600 border-red-200";
@@ -505,14 +536,16 @@ export default function SpotRisePage() {
                 <div className="flex-1 flex items-center gap-3 px-4 py-3">
                   <Search className="w-5 h-5 text-gray-warm shrink-0" />
                   <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
                     className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
                 </div>
                 <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-border-warm">
                   <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
                   <input type="text" placeholder="City (e.g., Austin)" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
                     className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
                 </div>
-                <button onClick={handleSearch} disabled={!businessName.trim() || !location.trim()}
+                <button onClick={() => userState === "anonymous" ? setShowLogin(true) : handleSearch()} disabled={userState !== "anonymous" && (!businessName.trim() || !location.trim())}
                   className="px-6 py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   Audit Now <ArrowRight className="w-4 h-4" />
                 </button>
@@ -789,14 +822,7 @@ export default function SpotRisePage() {
 
         {/* ========== OVERVIEW TAB ========== */}
         {activeTab === "overview" && searchStatus === "locked" && (
-          <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-orange-light flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-orange" /></div>
-            <h2 className="font-serif text-xl font-bold mb-2">You've used both free audits</h2>
-            <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">
-              Upgrade to Pro to link a business permanently, unlock full reviews and posts, and get a fresh audit sent to your inbox every Monday.
-            </p>
-            <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
-          </div>
+          <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />
         )}
         {activeTab === "overview" && searchStatus !== "locked" && (
           <div className="space-y-6">
@@ -814,6 +840,13 @@ export default function SpotRisePage() {
                   <span className="font-semibold text-sm">{liveSnapshot.rating.toFixed(1)}</span>
                   <span className="text-xs text-gray-warm">({liveSnapshot.reviewsCount} reviews)</span>
                 </div>
+              </div>
+            )}
+
+            {userState !== "pro" && liveSnapshot && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-soft/10 border border-blue-soft/25 text-sm text-blue-soft-dark">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>* Based on your latest {liveSnapshot.analysisReviewCount || 10} reviews. <button onClick={() => setShowUpgrade(true)} className="underline font-medium">Upgrade to Pro</button> for a comprehensive audit using up to 50 reviews.</span>
               </div>
             )}
 
@@ -950,7 +983,8 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== REVIEWS TAB ========== */}
-        {activeTab === "reviews" && (
+        {activeTab === "reviews" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "reviews" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -997,8 +1031,23 @@ export default function SpotRisePage() {
                         <button onClick={() => copyReviewReply(review.id, review.aiReply!)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange text-white text-xs font-medium hover:bg-orange-hover transition-colors">
                           {copiedReview === review.id ? (<><CheckCircle2 className="w-3.5 h-3.5" />Copied!</>) : (<><Copy className="w-3.5 h-3.5" />Copy This Reply</>)}
                         </button>
-                        <button className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-gray-warm text-xs hover:bg-cream transition-colors">Regenerate</button>
+                        <button
+                          onClick={() => "dbId" in review && handleRegenerateReply(review.id, (review as any).dbId, review.text, review.rating)}
+                          disabled={!("dbId" in review) || regeneratingId === review.id}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-gray-warm text-xs hover:bg-cream transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                          {regeneratingId === review.id ? "Regenerating..." : "Regenerate"}
+                        </button>
                       </div>
+                    </div>
+                  )}
+                  {userState === "pro" && !review.aiReply && "dbId" in review && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => handleRegenerateReply(review.id, (review as any).dbId, review.text, review.rating)}
+                        disabled={regeneratingId === review.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <Sparkles className="w-3.5 h-3.5" />{regeneratingId === review.id ? "Generating..." : "Generate Reply"}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1007,14 +1056,15 @@ export default function SpotRisePage() {
             {userState !== "pro" && filteredReviews.length > 1 && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock all reviews and AI replies.</p>
+                <p className="text-sm text-gray-warm">We analyze your {liveSnapshot?.analysisReviewCount || 10} most recent reviews. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to see up to 50 reviews with AI replies.</p>
               </div>
             )}
           </div>
         )}
 
         {/* ========== POSTS TAB ========== */}
-        {activeTab === "posts" && (
+        {activeTab === "posts" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "posts" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -1042,14 +1092,15 @@ export default function SpotRisePage() {
             {userState !== "pro" && MOCK_POSTS.length > 1 && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock all weekly posts.</p>
+                <p className="text-sm text-gray-warm">Upgrade to Pro to see all {MOCK_POSTS.length} post ideas. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock and copy them all.</p>
               </div>
             )}
           </div>
         )}
 
         {/* ========== COMPETITORS TAB ========== */}
-        {activeTab === "competitors" && (
+        {activeTab === "competitors" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "competitors" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -1172,7 +1223,8 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== TOOLS TAB ========== */}
-        {activeTab === "tools" && (
+        {activeTab === "tools" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "tools" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold">Pro Tools</h2>
@@ -1271,6 +1323,24 @@ function SearchingProgress() {
           <div key={i} className={`h-1.5 rounded-full transition-all ${i <= step ? "w-6 bg-orange" : "w-1.5 bg-border-warm"}`} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   LOCKED TAB — shown across every tab once free credits are used up,
+   so the experience is consistent instead of only Overview knowing
+   about it while other tabs kept showing stale/mock data.
+   ================================================================ */
+function LockedTabMessage({ onUpgrade }: { onUpgrade: () => void }) {
+  return (
+    <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-orange-light flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-orange" /></div>
+      <h2 className="font-serif text-xl font-bold mb-2">You've used both free audits</h2>
+      <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">
+        Upgrade to Pro to link a business permanently and unlock full access to reviews, posts, and competitor tracking.
+      </p>
+      <button onClick={onUpgrade} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
     </div>
   );
 }
