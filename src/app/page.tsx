@@ -340,11 +340,48 @@ export default function SpotRisePage() {
   // Real auth: check for an existing session on load, then keep listening
   // for sign-in / sign-out so the whole app reacts automatically —
   // no page refresh needed after clicking the magic link.
+  const loadMySession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/my-business");
+      if (!res.ok) return;
+      const data = await res.json();
+      setUserState(data.plan === "pro" ? "pro" : "free");
+
+      if (data.hasBusiness && data.business) {
+        setLiveSnapshot({
+          score: data.snapshot?.score ?? 0,
+          reviewsCount: data.snapshot?.reviews_count ?? 0,
+          rating: data.snapshot?.rating ?? 0,
+          photoCount: data.snapshot?.photo_count ?? 0,
+          name: data.business.name,
+          address: data.business.address,
+          sentiment: data.snapshot?.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
+          analysisReviewCount: data.reviews?.length ?? 0,
+          businessId: data.business.id,
+        });
+        setLiveActionItems((data.actionItems ?? []).map((item: any, i: number) => ({ id: i, priority: item.priority, title: item.title, description: item.description, impact: item.impact })));
+        setLiveReviews((data.reviews ?? []).map((r: any, i: number) => ({
+          id: i, dbId: r.id, author: r.author, rating: r.rating, text: r.text,
+          date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
+          sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
+        })));
+        setLivePosts((data.posts ?? []).map((p: any, i: number) => ({
+          id: i, type: p.type, title: p.title, content: p.content,
+          date: new Date(p.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        })));
+        setHasSearched(true);
+        setActiveTab("overview");
+      }
+    } catch (err) {
+      console.error("loadMySession failed:", err);
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
-        setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+        loadMySession();
         resumePendingSearch();
       }
       setAuthLoading(false);
@@ -353,7 +390,7 @@ export default function SpotRisePage() {
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
-        setUserState((prev) => (prev === "pro" ? "pro" : "free"));
+        loadMySession();
         if (event === "SIGNED_IN") resumePendingSearch();
       } else {
         setUserEmail(null);
@@ -362,13 +399,17 @@ export default function SpotRisePage() {
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [supabase, resumePendingSearch]);
+  }, [supabase, resumePendingSearch, loadMySession]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUserState("anonymous");
     setUserEmail(null);
     setHasSearched(false);
+    setLiveSnapshot(null);
+    setLiveActionItems([]);
+    setLiveReviews([]);
+    setLivePosts([]);
   };
 
   const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
@@ -830,10 +871,10 @@ export default function SpotRisePage() {
       <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center cursor-pointer" onClick={() => setHasSearched(false)}>
+            <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center cursor-pointer" onClick={() => liveSnapshot ? setActiveTab("overview") : setHasSearched(false)}>
               <Zap className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-serif font-bold tracking-tight cursor-pointer" onClick={() => setHasSearched(false)}>SpotRise</span>
+            <span className="text-xl font-serif font-bold tracking-tight cursor-pointer" onClick={() => liveSnapshot ? setActiveTab("overview") : setHasSearched(false)}>SpotRise</span>
             {userState !== "anonymous" && currentBusiness?.businessName && (
               <div className="hidden sm:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-cream border border-border-warm text-xs">
                 <span className="text-gray-warm">Business {currentSlot} of 2:</span>
@@ -1458,7 +1499,12 @@ function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: str
       });
       const data = await res.json();
       if (!res.ok) {
-        setDescError(data.error === "monthly_limit_reached" ? "You've reached this month's limit for Description Writer (20 generations). Resets next month." : "Something went wrong generating descriptions.");
+        console.error("description-writer error:", data);
+        setDescError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for Description Writer (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong generating descriptions."
+        );
         return;
       }
       setDescOptions(data.options ?? []);
@@ -1491,7 +1537,12 @@ function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: str
       });
       const data = await res.json();
       if (!res.ok) {
-        setKwError(data.error === "monthly_limit_reached" ? "You've reached this month's limit for Keyword Finder (20 generations). Resets next month." : "Something went wrong finding keywords.");
+        console.error("keyword-finder error:", data);
+        setKwError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for Keyword Finder (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong finding keywords."
+        );
         return;
       }
       setKwData(data);

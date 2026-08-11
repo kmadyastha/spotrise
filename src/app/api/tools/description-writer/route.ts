@@ -43,7 +43,7 @@ Things to highlight: ${highlights || "not specified"}
 Write 2 full-length description options. Respond with ONLY valid JSON (no markdown fences, no commentary):
 { "options": ["<description 1>", "<description 2>"] }
 
-Hard rules: each option must be between 600-750 characters (Google's field allows up to 750; use most of it). The first 250 characters must work as a standalone hook (who/what/where) since that's all that shows before "Read more." No pricing, deals, sales, or time-sensitive offers — Google's policy reserves that for Posts, not this field. No URLs or HTML. No emojis (this is a formal bio field, not a social post). Write in ${tone || "a professional"} tone, naturally incorporating relevant local-search phrases without keyword-stuffing.`;
+Hard rules: each option must be between 500-650 characters — this is a strict technical limit (Google rejects anything over 750, so stay well under it; models tend to overestimate their own length, aim short). The first 250 characters must work as a standalone hook (who/what/where) since that's all that shows before "Read more." No pricing, deals, sales, or time-sensitive offers — Google's policy reserves that for Posts, not this field. No URLs or HTML. No emojis (this is a formal bio field, not a social post). Write in ${tone || "a professional"} tone, naturally incorporating relevant local-search phrases without keyword-stuffing.`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -56,9 +56,25 @@ Hard rules: each option must be between 600-750 characters (Google's field allow
     const cleaned = (claudeData.content?.[0]?.text ?? "{}").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
+    // Safety net: LLMs are unreliable at hitting an exact character count
+    // (they estimate, they don't actually count as they write) — asking
+    // more firmly in the prompt reduces overshoot but can't guarantee it.
+    // Hard-enforce the real Google limit here regardless of what came back,
+    // trimming at the last full sentence (or word) before the cutoff.
+    const GBP_LIMIT = 750;
+    const enforceLimit = (text: string): string => {
+      if (text.length <= GBP_LIMIT) return text;
+      const cut = text.slice(0, GBP_LIMIT);
+      const lastSentenceEnd = cut.lastIndexOf(". ");
+      if (lastSentenceEnd > GBP_LIMIT * 0.6) return cut.slice(0, lastSentenceEnd + 1);
+      const lastSpace = cut.lastIndexOf(" ");
+      return lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+    };
+    const options = (parsed.options ?? []).map(enforceLimit);
+
     await supabase.from("tool_usage").insert({ user_id: user.id, business_id: businessId, tool: "description_writer" });
 
-    return NextResponse.json({ options: parsed.options ?? [] });
+    return NextResponse.json({ options });
   } catch (err) {
     console.error("description-writer failed:", err);
     return NextResponse.json({ error: "unexpected_error", details: String(err) }, { status: 500 });
