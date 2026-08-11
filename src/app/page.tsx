@@ -127,7 +127,12 @@ export default function SpotRisePage() {
   const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "confirming" | "locked" | "error">("idle");
   const [searchMatches, setSearchMatches] = useState<{ placeId: string; name: string; address: string; rating: number | null; reviewCount: number }[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [liveSnapshot, setLiveSnapshot] = useState<{ score: number; reviewsCount: number; rating: number; photoCount: number } | null>(null);
+  const [liveSnapshot, setLiveSnapshot] = useState<{
+    score: number; reviewsCount: number; rating: number; photoCount: number; name: string; address: string;
+    sentiment: { positive: number; neutral: number; negative: number };
+  } | null>(null);
+  const [liveActionItems, setLiveActionItems] = useState<{ id: number; priority: string; title: string; description: string; impact: string }[]>([]);
+  const [liveReviews, setLiveReviews] = useState<{ id: number; author: string; rating: number; text: string; date: string; sentiment: "positive" | "neutral" | "negative"; aiReply?: string }[]>([]);
 
   const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
     { id: 1, businessName: null, location: null, changed: false },
@@ -160,13 +165,16 @@ export default function SpotRisePage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   /* Derived */
-  const filteredReviews = MOCK_REVIEWS.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
+  // Real reviews once a search has been confirmed; falls back to mock
+  // data only when nothing real has loaded yet.
+  const reviewSource = liveReviews.length > 0 ? liveReviews : MOCK_REVIEWS;
+  const filteredReviews = reviewSource.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
   // Real score/stats once a search has been confirmed; falls back to
   // mock numbers only for the locked teaser (nothing real to show there).
   const score = liveSnapshot?.score ?? 67;
-  const positivePct = 62;
-  const neutralPct = 18;
-  const negativePct = 20;
+  const positivePct = liveSnapshot?.sentiment.positive ?? 62;
+  const neutralPct = liveSnapshot?.sentiment.neutral ?? 18;
+  const negativePct = liveSnapshot?.sentiment.negative ?? 20;
   const usedSlots = businessSlots.filter((s) => s.businessName !== null).length;
   const currentBusiness = businessSlots.find((s) => s.id === currentSlot);
 
@@ -182,9 +190,11 @@ export default function SpotRisePage() {
       });
 
       if (res.status === 401) {
-        // Not logged in — remember what they were searching for, then
-        // prompt login. We resume automatically once they're back.
-        sessionStorage.setItem("pendingSearch", JSON.stringify({ name, loc }));
+        // Not logged in — the business name/location are already in
+        // state, so we don't need to stash them anywhere. Just show
+        // the login modal; it reads them directly and encodes them
+        // into the magic-link URL itself (see LoginModal below) so
+        // they survive even if the link opens in a brand new tab.
         setSearchStatus("idle");
         setShowLogin(true);
         return;
@@ -223,7 +233,7 @@ export default function SpotRisePage() {
     runSearch(businessName, location);
   }, [businessName, location, runSearch]);
 
-  const handleConfirmBusiness = useCallback(async (placeId: string, name: string) => {
+  const handleConfirmBusiness = useCallback(async (placeId: string, name: string, address: string) => {
     setSearchStatus("searching");
     try {
       const res = await fetch("/api/confirm-business", {
@@ -251,7 +261,24 @@ export default function SpotRisePage() {
         reviewsCount: data.snapshot.reviews_count,
         rating: data.snapshot.rating,
         photoCount: data.snapshot.photo_count,
+        name,
+        address,
+        sentiment: data.snapshot.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
       });
+      setLiveActionItems(
+        (data.actionItems ?? []).map((item: any, i: number) => ({ id: i, ...item }))
+      );
+      setLiveReviews(
+        (data.reviews ?? []).map((r: any, i: number) => ({
+          id: i,
+          author: r.author,
+          rating: r.rating,
+          text: r.text,
+          date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
+          sentiment: r.sentiment,
+          aiReply: r.ai_reply || undefined,
+        }))
+      );
       setSearchStatus("idle");
       setHasSearched(true);
       setActiveTab("overview");
@@ -261,13 +288,17 @@ export default function SpotRisePage() {
     }
   }, []);
 
-  // Resume a search that was interrupted by the login prompt — fires
-  // once we detect a real session (see the auth effect below).
+  // Resume a search that was interrupted by the login prompt. Rather
+  // than rely on sessionStorage (which doesn't survive the email link
+  // opening in a new tab), the pending search is encoded directly in
+  // the URL the magic link redirects back to — see LoginModal for
+  // where that URL gets built.
   const resumePendingSearch = useCallback(() => {
-    const pending = sessionStorage.getItem("pendingSearch");
-    if (pending) {
-      sessionStorage.removeItem("pendingSearch");
-      const { name, loc } = JSON.parse(pending);
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get("resumeName");
+    const loc = params.get("resumeLoc");
+    if (name && loc) {
+      window.history.replaceState({}, "", window.location.pathname);
       setBusinessName(name);
       setLocation(loc);
       runSearch(name, loc);
@@ -395,7 +426,7 @@ export default function SpotRisePage() {
               <p className="text-sm text-gray-warm mb-6">We found {searchMatches.length} match{searchMatches.length !== 1 ? "es" : ""} for "{businessName}" near {location}.</p>
               <div className="space-y-3">
                 {searchMatches.map((m) => (
-                  <button key={m.placeId} onClick={() => handleConfirmBusiness(m.placeId, m.name)}
+                  <button key={m.placeId} onClick={() => handleConfirmBusiness(m.placeId, m.name, m.address)}
                     className="w-full text-left p-4 rounded-2xl bg-white border border-border-warm shadow-sm hover:border-orange/40 hover:shadow-md transition-all flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className="font-medium text-sm truncate">{m.name}</div>
@@ -689,7 +720,7 @@ export default function SpotRisePage() {
         </footer>
 
         {/* Modals */}
-        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
+        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
         <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       </div>
@@ -769,6 +800,23 @@ export default function SpotRisePage() {
         )}
         {activeTab === "overview" && searchStatus !== "locked" && (
           <div className="space-y-6">
+            {/* Business Identity Header */}
+            {liveSnapshot && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h1 className="font-serif text-xl font-bold text-charcoal">{liveSnapshot.name}</h1>
+                  <p className="text-sm text-gray-warm mt-0.5 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />{liveSnapshot.address}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white border border-border-warm">
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <span className="font-semibold text-sm">{liveSnapshot.rating.toFixed(1)}</span>
+                  <span className="text-xs text-gray-warm">({liveSnapshot.reviewsCount} reviews)</span>
+                </div>
+              </div>
+            )}
+
             {/* Consolidated Insights Card */}
             <div className="rounded-2xl bg-white border border-border-warm shadow-sm overflow-hidden">
               <div className="p-6 sm:p-8">
@@ -779,7 +827,7 @@ export default function SpotRisePage() {
                       <svg className="w-40 h-40 -rotate-90" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="42" fill="none" stroke="#E8DFD1" strokeWidth="8" />
                         <circle cx="50" cy="50" r="42" fill="none" stroke="url(#scoreGradient)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(score / 100) * 264} 264`} />
-                        <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
+                        <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#D4652A" /><stop offset="100%" stopColor="#F0A868" /></linearGradient></defs>
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className={`text-4xl font-bold ${getScoreColor(score)}`}>{score}</span>
@@ -787,15 +835,25 @@ export default function SpotRisePage() {
                       </div>
                     </div>
                     <div className="mt-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${score >= 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-600"}`}>
-                        <AlertCircle className="w-3 h-3" />Needs Improvement
-                      </span>
+                      {score >= 80 ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                          <CheckCircle2 className="w-3 h-3" />Excellent
+                        </span>
+                      ) : score >= 60 ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          <AlertCircle className="w-3 h-3" />Needs Improvement
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                          <AlertCircle className="w-3 h-3" />Critical
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Stats + Sentiment */}
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-serif text-lg font-semibold mb-4">Google Business Profile Health</h2>
+                    <h2 className="font-serif text-lg font-semibold mb-4">Profile Health Breakdown</h2>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                       {[
                         { label: "Reviews", value: liveSnapshot ? String(liveSnapshot.reviewsCount) : "142", change: liveSnapshot ? "" : "+8", icon: MessageSquare },
@@ -836,7 +894,7 @@ export default function SpotRisePage() {
                   <h3 className="font-semibold">AI Action Items — Prioritized by Impact</h3>
                 </div>
                 <div className="space-y-3">
-                  {MOCK_ACTION_ITEMS.map((item) => (
+                  {(liveActionItems.length > 0 ? liveActionItems : MOCK_ACTION_ITEMS).map((item) => (
                     <div key={item.id} className={`flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl bg-cream border-l-4 ${item.priority === "high" ? "border-l-red-400" : item.priority === "medium" ? "border-l-amber-400" : "border-l-blue-400"} border-y border-r border-border-warm`}>
                       <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
                       <div className="flex-1 min-w-0">
@@ -897,7 +955,7 @@ export default function SpotRisePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Review Inbox</h2>
-                <p className="text-sm text-gray-warm mt-1">{userState === "anonymous" ? "Sign in to see all reviews and AI-suggested replies" : "All your reviews with AI-suggested replies"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState !== "pro" ? "Upgrade to Pro to see all reviews and AI-suggested replies" : "All your reviews with AI-suggested replies"}</p>
               </div>
               <div className="flex gap-2">
                 {(["all", "positive", "negative", "neutral"] as const).map((f) => (
@@ -909,7 +967,7 @@ export default function SpotRisePage() {
               </div>
             </div>
             <div className="space-y-4">
-              {(userState === "anonymous" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
+              {(userState !== "pro" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
                 <div key={review.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -946,10 +1004,10 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
-            {userState === "anonymous" && filteredReviews.length > 1 && (
+            {userState !== "pro" && filteredReviews.length > 1 && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all reviews and AI replies.</p>
+                <p className="text-sm text-gray-warm">{filteredReviews.length - 1} more reviews hidden. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock all reviews and AI replies.</p>
               </div>
             )}
           </div>
@@ -961,11 +1019,11 @@ export default function SpotRisePage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Weekly Posts</h2>
-                <p className="text-sm text-gray-warm mt-1">{userState === "anonymous" ? "Sign in to see all post ideas and copy them to your GBP" : "AI-generated posts ready to copy to your Google Business Profile"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState !== "pro" ? "Upgrade to Pro to see all post ideas and copy them to your GBP" : "AI-generated posts ready to copy to your Google Business Profile"}</p>
               </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              {(userState === "anonymous" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
+              {(userState !== "pro" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
                 <div key={post.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-center justify-between mb-3">
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${POST_TYPE_STYLE[post.type] || "bg-cream text-gray-warm"}`}>{post.type}</span>
@@ -981,10 +1039,10 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
-            {userState === "anonymous" && MOCK_POSTS.length > 1 && (
+            {userState !== "pro" && MOCK_POSTS.length > 1 && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowLogin(true)} className="text-orange hover:underline">Sign in free</button> to unlock all weekly posts.</p>
+                <p className="text-sm text-gray-warm">{MOCK_POSTS.length - 1} more post ideas hidden. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock all weekly posts.</p>
               </div>
             )}
           </div>
@@ -1166,7 +1224,7 @@ export default function SpotRisePage() {
       </div>
 
       {/* ========== MODALS ========== */}
-      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
+      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
       <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
@@ -1264,7 +1322,7 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
   );
 }
 
-function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function LoginModal({ open, onClose, pendingBusinessName, pendingLocation }: { open: boolean; onClose: () => void; pendingBusinessName?: string; pendingLocation?: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -1272,9 +1330,17 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const handleSendLink = async () => {
     if (!email.trim()) return;
     setStatus("sending");
+    // Encode the pending search into the redirect target itself, so it
+    // survives the round trip even if the email link opens in a brand
+    // new tab (sessionStorage/localStorage wouldn't carry over there).
+    let next = "/";
+    if (pendingBusinessName?.trim() && pendingLocation?.trim()) {
+      const params = new URLSearchParams({ resumeName: pendingBusinessName, resumeLoc: pendingLocation });
+      next = `/?${params.toString()}`;
+    }
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     setStatus(error ? "error" : "sent");
   };
