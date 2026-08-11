@@ -135,6 +135,8 @@ export async function POST(request: Request) {
 
     const matches = (relevant.length > 0 ? relevant : withinRadius).slice(0, 5);
 
+    console.log(`[search-business] "${businessName}" near "${location}" — Google raw: ${allResults.length}, after radius filter: ${withinRadius.length}, after relevance filter: ${relevant.length}, final: ${matches.length}`);
+
     return NextResponse.json({ locked: false, matches });
   } catch (err) {
     console.error("search-business failed:", err);

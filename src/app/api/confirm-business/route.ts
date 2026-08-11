@@ -111,9 +111,13 @@ export async function POST(request: Request) {
     // the rest get a "Generate Reply" button, on demand.
     const autoReplyCount = isPro ? Math.min(10, allReviews.length) : Math.min(1, allReviews.length);
 
-    const score = Math.round(
-      Math.min(100, rating * 15 + Math.min(reviewCount, 200) / 4 + Math.min(photoCount, 20) * 1.5)
+    // Fallback score if Claude's analysis fails entirely (no reviews, or
+    // a parse error below) — real Places metadata, deliberately capped
+    // lower than 100 since it can't account for what reviews actually say.
+    const fallbackScore = Math.round(
+      Math.min(85, rating * 12 + Math.min(reviewCount, 200) / 5 + Math.min(photoCount, 20) * 1)
     );
+    let score = fallbackScore;
 
     // ---- Real AI analysis via Claude ----
     let sentiment = { positive: 0, neutral: 0, negative: 0 };
@@ -129,6 +133,7 @@ ${allReviews.map((r, i) => `${i + 1}. [${r.rating}★] ${r.author}: "${r.text}"`
 
 Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly this shape:
 {
+  "score": <int 0-100, your overall audit score for this profile>,
   "sentiment": { "positive": <int 0-100>, "neutral": <int 0-100>, "negative": <int 0-100> },
   "actionItems": [
     { "priority": "high" | "medium" | "low", "title": "<short title>", "description": "<one sentence, specific and actionable, referencing real patterns from the reviews or stats above>", "impact": "<short estimated benefit, e.g. '+15% customer trust'>" }
@@ -136,7 +141,7 @@ Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly this
   "reviewReplies": ["<reply to review 1>", ${reviewsToReply.length > 1 ? `"<reply to review 2>", ...` : ""}]
 }
 
-Rules: sentiment percentages must sum to 100, based on all ${allReviews.length} reviews above. Give 3-5 actionItems, ordered highest priority first, genuinely derived from patterns across all the reviews (not generic filler). For reviewReplies, draft a reply for ONLY the first ${reviewsToReply.length} review(s) listed above, in order — warm, specific to that review's content, under 40 words, professional. Do not draft replies for reviews beyond the first ${reviewsToReply.length}.`;
+Rules: the score, sentiment, and actionItems must all be CONSISTENT with each other and with what the reviews actually say — do not let a high star rating alone drive a high score if the review text describes real, recurring problems (broken equipment, poor service, hygiene, safety, etc). A profile with significant negative themes across reviews should score well below 100 even with a decent average rating. Sentiment percentages must sum to 100, based on all ${allReviews.length} reviews above. Give 3-5 actionItems, ordered highest priority first, genuinely derived from patterns across all the reviews (not generic filler). For reviewReplies, draft a reply for ONLY the first ${reviewsToReply.length} review(s) listed above, in order — warm, specific to that review's content, under 40 words, professional. Do not draft replies for reviews beyond the first ${reviewsToReply.length}.`;
 
       const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -159,6 +164,7 @@ Rules: sentiment percentages must sum to 100, based on all ${allReviews.length} 
           const rawText = claudeData.content?.[0]?.text ?? "{}";
           const cleaned = rawText.replace(/```json|```/g, "").trim();
           const parsed = JSON.parse(cleaned);
+          score = typeof parsed.score === "number" ? Math.max(0, Math.min(100, Math.round(parsed.score))) : fallbackScore;
           sentiment = parsed.sentiment ?? sentiment;
           actionItems = parsed.actionItems ?? [];
           reviewReplies = parsed.reviewReplies ?? [];
@@ -170,6 +176,51 @@ Rules: sentiment percentages must sum to 100, based on all ${allReviews.length} 
       }
     }
 
+    // ---- Real Weekly Posts, generated from the actual business + reviews ----
+    // Separate call from the review analysis above — keeps each prompt
+    // focused and easier to debug independently.
+    let generatedPosts: { type: string; title: string; content: string }[] = [];
+    if (allReviews.length > 0) {
+      const postsPrompt = `You are a local-business social media consultant writing Google Business Profile posts for "${name}". Rating: ${rating}★, ${reviewCount} reviews.
+
+Here are real customer reviews to draw genuine, specific details from (things praised, things mentioned, offerings referenced):
+${allReviews.slice(0, 15).map((r, i) => `${i + 1}. [${r.rating}★] "${r.text}"`).join("\n")}
+
+Write 4 Google Business Profile posts. Respond with ONLY valid JSON (no markdown fences, no commentary):
+{
+  "posts": [
+    { "type": "Offer" | "Update" | "Event" | "Story", "title": "<short catchy title>", "content": "<the post text, 1-2 sentences, include one relevant emoji, reference something genuinely specific to this business from the reviews above — not generic filler>" }
+  ]
+}
+
+Rules: exactly 4 posts, one of each type. Every post must reference something real and specific about THIS business (a praised feature, a real offering, a real strength mentioned in reviews) — never invent unrelated promotions (no pizza deals unless this is actually a pizza place).`;
+
+      try {
+        const postsRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": process.env.ANTHROPIC_API_KEY!,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 1000,
+            messages: [{ role: "user", content: postsPrompt }],
+          }),
+        });
+        const postsData = await postsRes.json();
+        if (postsRes.ok) {
+          const cleaned = (postsData.content?.[0]?.text ?? "{}").replace(/```json|```/g, "").trim();
+          generatedPosts = JSON.parse(cleaned).posts ?? [];
+        } else {
+          console.error("Claude posts generation error:", postsData);
+        }
+      } catch (e) {
+        console.error("Posts generation failed:", e);
+      }
+    }
+
     const { data: business, error: businessError } = await supabase
       .from("businesses")
       .insert({ user_id: user.id, place_id: placeId, name, is_linked: isPro })
@@ -178,6 +229,15 @@ Rules: sentiment percentages must sum to 100, based on all ${allReviews.length} 
 
     if (businessError) {
       return NextResponse.json({ error: "db_error", details: businessError.message }, { status: 500 });
+    }
+
+    let savedPosts: any[] = [];
+    if (generatedPosts.length > 0) {
+      const { data: insertedPosts } = await supabase
+        .from("posts")
+        .insert(generatedPosts.map((p) => ({ business_id: business.id, type: p.type, title: p.title, content: p.content })))
+        .select();
+      savedPosts = insertedPosts ?? [];
     }
 
     const { data: snapshot, error: snapshotError } = await supabase
@@ -251,6 +311,7 @@ Rules: sentiment percentages must sum to 100, based on all ${allReviews.length} 
       snapshot: { ...snapshot, sentiment },
       actionItems,
       reviews: savedReviews,
+      posts: savedPosts,
       analysisReviewCount: allReviews.length,
     });
   } catch (err) {

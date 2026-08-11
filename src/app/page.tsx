@@ -131,8 +131,12 @@ export default function SpotRisePage() {
     score: number; reviewsCount: number; rating: number; photoCount: number; name: string; address: string;
     sentiment: { positive: number; neutral: number; negative: number };
     analysisReviewCount: number;
+    businessId: string;
   } | null>(null);
   const [liveActionItems, setLiveActionItems] = useState<{ id: number; priority: string; title: string; description: string; impact: string }[]>([]);
+  const [livePosts, setLivePosts] = useState<{ id: number; type: string; title: string; content: string; date: string }[]>([]);
+  const [weeklyPulse, setWeeklyPulse] = useState<{ hasEnoughData: boolean; current?: any; changes?: any; lastRefreshed?: string } | null>(null);
+  const [refreshingAudit, setRefreshingAudit] = useState(false);
   const [liveReviews, setLiveReviews] = useState<{ id: number; dbId: string; author: string; rating: number; text: string; date: string; sentiment: "positive" | "neutral" | "negative"; aiReply?: string }[]>([]);
 
   const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
@@ -169,6 +173,7 @@ export default function SpotRisePage() {
   // Real reviews once a search has been confirmed; falls back to mock
   // data only when nothing real has loaded yet.
   const reviewSource = liveReviews.length > 0 ? liveReviews : MOCK_REVIEWS;
+  const postSource = livePosts.length > 0 ? livePosts : MOCK_POSTS;
   const filteredReviews = reviewSource.filter((r) => reviewFilter === "all" ? true : r.sentiment === reviewFilter);
   // Real score/stats once a search has been confirmed; falls back to
   // mock numbers only for the locked teaser (nothing real to show there).
@@ -272,6 +277,7 @@ export default function SpotRisePage() {
         address,
         sentiment: data.snapshot.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
         analysisReviewCount: data.analysisReviewCount ?? 0,
+        businessId: data.business.id,
       });
       setLiveActionItems(
         (data.actionItems ?? []).map((item: any, i: number) => ({ id: i, ...item }))
@@ -288,9 +294,25 @@ export default function SpotRisePage() {
           aiReply: r.ai_reply || undefined,
         }))
       );
+      setLivePosts(
+        (data.posts ?? []).map((p: any, i: number) => ({
+          id: i,
+          type: p.type,
+          title: p.title,
+          content: p.content,
+          date: new Date(p.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        }))
+      );
+      setWeeklyPulse(null); // reset — will fetch fresh below if Pro
       setSearchStatus("idle");
       setHasSearched(true);
       setActiveTab("overview");
+      if (data.business?.is_linked) {
+        fetch(`/api/weekly-pulse?businessId=${data.business.id}`)
+          .then((r) => r.json())
+          .then((wp) => setWeeklyPulse(wp))
+          .catch(() => {});
+      }
     } catch {
       setSearchStatus("error");
       setSearchError("Something went wrong confirming that business.");
@@ -419,6 +441,44 @@ export default function SpotRisePage() {
       console.error("regenerate-reply failed:", err);
     } finally {
       setRegeneratingId(null);
+    }
+  };
+
+  const handleRefreshAudit = async () => {
+    if (!liveSnapshot?.businessId) return;
+    setRefreshingAudit(true);
+    try {
+      const res = await fetch("/api/refresh-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: liveSnapshot.businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("refresh-audit error:", data);
+        return;
+      }
+      setLiveSnapshot((prev) => prev ? {
+        ...prev,
+        score: data.snapshot.score,
+        reviewsCount: data.snapshot.reviews_count,
+        rating: data.snapshot.rating,
+        photoCount: data.snapshot.photo_count,
+        sentiment: data.snapshot.sentiment,
+        analysisReviewCount: data.analysisReviewCount ?? prev.analysisReviewCount,
+      } : prev);
+      setLiveActionItems((data.actionItems ?? []).map((item: any, i: number) => ({ id: i, ...item })));
+      setLiveReviews((data.reviews ?? []).map((r: any, i: number) => ({
+        id: i, dbId: r.id, author: r.author, rating: r.rating, text: r.text,
+        date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
+        sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
+      })));
+      const wpRes = await fetch(`/api/weekly-pulse?businessId=${liveSnapshot.businessId}`);
+      setWeeklyPulse(await wpRes.json());
+    } catch (err) {
+      console.error("refresh-audit failed:", err);
+    } finally {
+      setRefreshingAudit(false);
     }
   };
 
@@ -944,25 +1004,44 @@ export default function SpotRisePage() {
             </div>
 
             {/* Weekly Pulse */}
-            <div className="rounded-2xl bg-blue-soft/10 border border-blue-soft/25 p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <RefreshCw className="w-5 h-5 text-blue-soft-dark" />
-                <h3 className="font-semibold">Weekly Pulse</h3>
-                <span className="text-xs text-gray-warm ml-auto">vs last week</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                {MOCK_WEEKLY_CHANGES.map((change, i) => (
-                  <div key={i} className="p-4 rounded-xl bg-white border border-border-warm shadow-sm">
-                    <div className="text-xs text-gray-warm mb-2">{change.metric}</div>
-                    <div className="flex items-end gap-2"><span className="text-2xl font-bold">{change.current}{change.unit}</span></div>
-                    <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${change.change > 0 ? "text-emerald-600" : change.change < 0 ? "text-red-500" : "text-gray-warm"}`}>
-                      {change.change > 0 ? <TrendingUp className="w-3 h-3" /> : change.change < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                      {change.change > 0 ? "+" : ""}{change.change}%
-                    </div>
+            {userState === "pro" && (
+              <div className="rounded-2xl bg-blue-soft/10 border border-blue-soft/25 p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <RefreshCw className={`w-5 h-5 text-blue-soft-dark ${refreshingAudit ? "animate-spin" : ""}`} />
+                  <h3 className="font-semibold">Weekly Pulse</h3>
+                  <div className="ml-auto flex items-center gap-3">
+                    {weeklyPulse?.hasEnoughData && <span className="text-xs text-gray-warm">vs last audit</span>}
+                    <button onClick={handleRefreshAudit} disabled={refreshingAudit}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-white border border-border-warm hover:bg-cream transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {refreshingAudit ? "Refreshing..." : "Refresh Audit"}
+                    </button>
                   </div>
-                ))}
+                </div>
+                {!weeklyPulse?.hasEnoughData ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-warm">Not enough data yet — Weekly Pulse compares your audit to a previous one.</p>
+                    <p className="text-xs text-gray-warm mt-1">Click "Refresh Audit" to run a new one and start tracking changes over time.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                      { metric: "Reviews", current: weeklyPulse.current.reviewsCount, change: weeklyPulse.changes.reviewsCount, unit: "" },
+                      { metric: "Rating", current: weeklyPulse.current.rating.toFixed(1), change: weeklyPulse.changes.rating, unit: "★" },
+                      { metric: "Photos", current: weeklyPulse.current.photoCount, change: weeklyPulse.changes.photoCount, unit: "" },
+                    ].map((c, i) => (
+                      <div key={i} className="p-4 rounded-xl bg-white border border-border-warm shadow-sm">
+                        <div className="text-xs text-gray-warm mb-2">{c.metric}</div>
+                        <div className="flex items-end gap-2"><span className="text-2xl font-bold">{c.current}{c.unit}</span></div>
+                        <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${c.change > 0 ? "text-emerald-600" : c.change < 0 ? "text-red-500" : "text-gray-warm"}`}>
+                          {c.change > 0 ? <TrendingUp className="w-3 h-3" /> : c.change < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                          {c.change > 0 ? "+" : ""}{c.change}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {/* Locked Competitor Teaser */}
             {userState !== "pro" && (
@@ -1073,7 +1152,7 @@ export default function SpotRisePage() {
               </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              {(userState !== "pro" ? MOCK_POSTS.slice(0, 1) : MOCK_POSTS).map((post) => (
+              {(userState !== "pro" ? postSource.slice(0, 1) : postSource).map((post) => (
                 <div key={post.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-center justify-between mb-3">
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${POST_TYPE_STYLE[post.type] || "bg-cream text-gray-warm"}`}>{post.type}</span>
@@ -1089,10 +1168,10 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
-            {userState !== "pro" && MOCK_POSTS.length > 1 && (
+            {userState !== "pro" && postSource.length > 1 && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">Upgrade to Pro to see all {MOCK_POSTS.length} post ideas. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock and copy them all.</p>
+                <p className="text-sm text-gray-warm">Upgrade to Pro to see all {postSource.length} post ideas. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to unlock and copy them all.</p>
               </div>
             )}
           </div>
