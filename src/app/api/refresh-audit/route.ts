@@ -1,6 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+// Claude is asked for plain-string replies but sometimes wraps one in an
+// object anyway (a known model reliability quirk, not something wording
+// alone reliably prevents) — extract the actual reply text regardless of
+// shape instead of letting the raw JSON leak into what the user sees.
+function normalizeReply(r: any): string {
+  if (typeof r === "string") return r;
+  if (r && typeof r === "object") return r.reply ?? r.text ?? r.content ?? JSON.stringify(r);
+  return String(r ?? "");
+}
+
 // Re-runs a full audit (fresh Outscraper reviews + fresh Claude analysis)
 // for an already-linked Pro business, creating a NEW audit_snapshot so
 // Weekly Pulse has something real to compare against. Only Pro/linked
@@ -93,7 +103,7 @@ Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly this
   "reviewReplies": ["<reply to review 1>", ${reviewsToReply.length > 1 ? `"<reply to review 2>", ...` : ""}]
 }
 
-Rules: the score, sentiment, and actionItems must all be CONSISTENT with each other and with what the reviews actually say — do not let a high star rating alone drive a high score if the review text describes real, recurring problems. Sentiment percentages must sum to 100. Give 3-5 actionItems. Draft replies for ONLY the first ${reviewsToReply.length} review(s), in order.`;
+Rules: the score, sentiment, and actionItems must all be CONSISTENT with each other and with what the reviews actually say — do not let a high star rating alone drive a high score if the review text describes real, recurring problems. Sentiment percentages must sum to 100. Give 3-5 actionItems. Draft replies for ONLY the first ${reviewsToReply.length} review(s), in order. Each item in reviewReplies must be a PLAIN STRING — never an object, never wrapped with review number or reviewer name fields.`;
 
       const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -108,7 +118,7 @@ Rules: the score, sentiment, and actionItems must all be CONSISTENT with each ot
           score = typeof parsed.score === "number" ? Math.max(0, Math.min(100, Math.round(parsed.score))) : fallbackScore;
           sentiment = parsed.sentiment ?? sentiment;
           actionItems = parsed.actionItems ?? [];
-          reviewReplies = parsed.reviewReplies ?? [];
+          reviewReplies = (parsed.reviewReplies ?? []).map(normalizeReply);
         } catch (e) {
           console.error("Claude response wasn't valid JSON on refresh:", claudeData.content?.[0]?.text);
         }

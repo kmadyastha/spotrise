@@ -1,6 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+// Claude is asked for plain-string replies but sometimes wraps one in an
+// object anyway (a known model reliability quirk, not something wording
+// alone reliably prevents) — extract the actual reply text regardless of
+// shape instead of letting the raw JSON leak into what the user sees.
+function normalizeReply(r: any): string {
+  if (typeof r === "string") return r;
+  if (r && typeof r === "object") return r.reply ?? r.text ?? r.content ?? JSON.stringify(r);
+  return String(r ?? "");
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -141,7 +151,7 @@ Respond with ONLY valid JSON (no markdown fences, no commentary) in exactly this
   "reviewReplies": ["<reply to review 1>", ${reviewsToReply.length > 1 ? `"<reply to review 2>", ...` : ""}]
 }
 
-Rules: the score, sentiment, and actionItems must all be CONSISTENT with each other and with what the reviews actually say — do not let a high star rating alone drive a high score if the review text describes real, recurring problems (broken equipment, poor service, hygiene, safety, etc). A profile with significant negative themes across reviews should score well below 100 even with a decent average rating. Sentiment percentages must sum to 100, based on all ${allReviews.length} reviews above. Give 3-5 actionItems, ordered highest priority first, genuinely derived from patterns across all the reviews (not generic filler). For reviewReplies, draft a reply for ONLY the first ${reviewsToReply.length} review(s) listed above, in order — warm, specific to that review's content, under 40 words, professional. Do not draft replies for reviews beyond the first ${reviewsToReply.length}.`;
+Rules: the score, sentiment, and actionItems must all be CONSISTENT with each other and with what the reviews actually say — do not let a high star rating alone drive a high score if the review text describes real, recurring problems (broken equipment, poor service, hygiene, safety, etc). A profile with significant negative themes across reviews should score well below 100 even with a decent average rating. Sentiment percentages must sum to 100, based on all ${allReviews.length} reviews above. Give 3-5 actionItems, ordered highest priority first, genuinely derived from patterns across all the reviews (not generic filler). For reviewReplies, draft a reply for ONLY the first ${reviewsToReply.length} review(s) listed above, in order — warm, specific to that review's content, under 40 words, professional. Do not draft replies for reviews beyond the first ${reviewsToReply.length}. Each item in reviewReplies must be a PLAIN STRING — never an object, never wrapped with review number or reviewer name fields.`;
 
       const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -167,7 +177,7 @@ Rules: the score, sentiment, and actionItems must all be CONSISTENT with each ot
           score = typeof parsed.score === "number" ? Math.max(0, Math.min(100, Math.round(parsed.score))) : fallbackScore;
           sentiment = parsed.sentiment ?? sentiment;
           actionItems = parsed.actionItems ?? [];
-          reviewReplies = parsed.reviewReplies ?? [];
+          reviewReplies = (parsed.reviewReplies ?? []).map(normalizeReply);
         } catch (parseErr) {
           console.error("Claude response wasn't valid JSON:", claudeData.content?.[0]?.text);
         }
