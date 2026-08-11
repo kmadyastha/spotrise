@@ -137,6 +137,7 @@ export default function SpotRisePage() {
   const [livePosts, setLivePosts] = useState<{ id: number; type: string; title: string; content: string; date: string }[]>([]);
   const [weeklyPulse, setWeeklyPulse] = useState<{ hasEnoughData: boolean; current?: any; changes?: any; lastRefreshed?: string } | null>(null);
   const [refreshingAudit, setRefreshingAudit] = useState(false);
+  const [openTool, setOpenTool] = useState<string | null>(null);
   const [liveReviews, setLiveReviews] = useState<{ id: number; dbId: string; author: string; rating: number; text: string; date: string; sentiment: "positive" | "neutral" | "negative"; aiReply?: string }[]>([]);
 
   const [businessSlots, setBusinessSlots] = useState<BusinessSlot[]>([
@@ -1004,7 +1005,7 @@ export default function SpotRisePage() {
             </div>
 
             {/* Weekly Pulse */}
-            {userState === "pro" && (
+            {userState === "pro" ? (
               <div className="rounded-2xl bg-blue-soft/10 border border-blue-soft/25 p-6">
                 <div className="flex items-center gap-2 mb-5">
                   <RefreshCw className={`w-5 h-5 text-blue-soft-dark ${refreshingAudit ? "animate-spin" : ""}`} />
@@ -1040,6 +1041,17 @@ export default function SpotRisePage() {
                     ))}
                   </div>
                 )}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-6 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-soft/15 flex items-center justify-center shrink-0"><RefreshCw className="w-6 h-6 text-blue-soft-dark" /></div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-charcoal">Weekly Pulse</h3>
+                  <p className="text-sm text-gray-warm mt-1">Track how your reviews, rating, and photos change over time — available once you link a business with Pro.</p>
+                </div>
+                <button onClick={() => setShowUpgrade(true)} className="shrink-0 px-4 py-2 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors flex items-center gap-2">
+                  <Lock className="w-4 h-4" />Unlock with Pro
+                </button>
               </div>
             )}
 
@@ -1132,7 +1144,7 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
-            {userState !== "pro" && filteredReviews.length > 1 && (
+            {userState !== "pro" && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
                 <p className="text-sm text-gray-warm">We analyze your {liveSnapshot?.analysisReviewCount || 10} most recent reviews. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to see up to 50 reviews with AI replies.</p>
@@ -1335,7 +1347,7 @@ export default function SpotRisePage() {
                       </div>
                     </div>
                     {!isLocked && (
-                      <button className="mt-4 w-full py-2 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors">
+                      <button onClick={() => setOpenTool(tool.id)} className="mt-4 w-full py-2 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors">
                         Open Tool
                       </button>
                     )}
@@ -1353,6 +1365,10 @@ export default function SpotRisePage() {
           </div>
         )}
       </div>
+
+      {openTool && liveSnapshot?.businessId && (
+        <ToolDrawer toolId={openTool} onClose={() => setOpenTool(null)} businessId={liveSnapshot.businessId} businessName={liveSnapshot.name} />
+      )}
 
       {/* ========== MODALS ========== */}
       <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
@@ -1411,6 +1427,176 @@ function SearchingProgress() {
    so the experience is consistent instead of only Overview knowing
    about it while other tabs kept showing stale/mock data.
    ================================================================ */
+function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: string; onClose: () => void; businessId: string; businessName: string }) {
+  const TOOL_META: Record<string, { name: string; icon: any }> = {
+    description: { name: "Description Writer", icon: FileText },
+    nap: { name: "NAP Checker", icon: MapPin },
+    keywords: { name: "Keyword Finder", icon: KeyRound },
+    qa: { name: "Q&A Generator", icon: HelpCircle },
+    posts: { name: "Post Generator", icon: Sparkles },
+    photos: { name: "Photo Strategy", icon: ImageIcon },
+  };
+  const meta = TOOL_META[toolId];
+
+  // Description Writer state
+  const [differentiators, setDifferentiators] = useState("");
+  const [tone, setTone] = useState("Professional");
+  const [highlights, setHighlights] = useState("");
+  const [descOptions, setDescOptions] = useState<string[]>([]);
+  const [descLoading, setDescLoading] = useState(false);
+  const [descError, setDescError] = useState<string | null>(null);
+  const [copiedDesc, setCopiedDesc] = useState<number | null>(null);
+
+  const generateDescriptions = async () => {
+    setDescLoading(true);
+    setDescError(null);
+    try {
+      const res = await fetch("/api/tools/description-writer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId, differentiators, tone, highlights }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDescError(data.error === "monthly_limit_reached" ? "You've reached this month's limit for Description Writer (20 generations). Resets next month." : "Something went wrong generating descriptions.");
+        return;
+      }
+      setDescOptions(data.options ?? []);
+    } catch {
+      setDescError("Something went wrong generating descriptions.");
+    } finally {
+      setDescLoading(false);
+    }
+  };
+
+  const copyDesc = (i: number, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedDesc(i);
+    setTimeout(() => setCopiedDesc(null), 2000);
+  };
+
+  // Keyword Finder state
+  const [kwData, setKwData] = useState<{ likelySearches: { phrase: string; relevance: string }[]; fromReviews: string[] } | null>(null);
+  const [kwLoading, setKwLoading] = useState(false);
+  const [kwError, setKwError] = useState<string | null>(null);
+
+  const findKeywords = async () => {
+    setKwLoading(true);
+    setKwError(null);
+    try {
+      const res = await fetch("/api/tools/keyword-finder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setKwError(data.error === "monthly_limit_reached" ? "You've reached this month's limit for Keyword Finder (20 generations). Resets next month." : "Something went wrong finding keywords.");
+        return;
+      }
+      setKwData(data);
+    } catch {
+      setKwError("Something went wrong finding keywords.");
+    } finally {
+      setKwLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-charcoal/40" onClick={onClose} />
+      <div className="relative w-full sm:w-[65%] max-w-2xl h-full bg-white shadow-2xl overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-border-warm px-6 py-4 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
+            {meta && <meta.icon className="w-5 h-5 text-orange" />}
+            <h2 className="font-serif text-lg font-semibold">{meta?.name}</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-cream transition-colors"><X className="w-5 h-5 text-gray-warm" /></button>
+        </div>
+
+        <div className="p-6">
+          {toolId === "description" && (
+            <div>
+              <p className="text-sm text-gray-warm mb-5">Three quick questions, then pick from a couple of full-length options. Google allows up to 750 characters — only the first 250 show before "Read more," so we lead with your strongest hook.</p>
+              <label className="text-sm font-medium block mb-1.5">What makes your business different</label>
+              <textarea rows={2} value={differentiators} onChange={(e) => setDifferentiators(e.target.value)} placeholder="Family-owned since 2015, we source local ingredients daily"
+                className="w-full mb-3.5 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-orange/50 resize-none" />
+              <label className="text-sm font-medium block mb-1.5">Tone</label>
+              <select value={tone} onChange={(e) => setTone(e.target.value)} className="w-full mb-3.5 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-orange/50">
+                <option>Professional</option><option>Friendly</option><option>Playful</option>
+              </select>
+              <label className="text-sm font-medium block mb-1.5">Anything to highlight</label>
+              <input type="text" value={highlights} onChange={(e) => setHighlights(e.target.value)} placeholder="Free delivery, extended weekend hours"
+                className="w-full mb-4 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-orange/50" />
+              <button onClick={generateDescriptions} disabled={descLoading}
+                className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50">
+                {descLoading ? "Generating..." : "Generate descriptions"}
+              </button>
+              {descError && <p className="text-sm text-red-500 mt-3">{descError}</p>}
+              {descOptions.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-border-warm space-y-3">
+                  <p className="text-xs text-gray-warm">{descOptions.length} options — pick one to use</p>
+                  {descOptions.map((opt, i) => (
+                    <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm">
+                      <p className="text-sm leading-relaxed mb-3">{opt}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-warm">{opt.length} characters</span>
+                        <button onClick={() => copyDesc(i, opt)} className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-xs font-medium hover:bg-cream-dark transition-colors">
+                          {copiedDesc === i ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {toolId === "keywords" && (
+            <div>
+              {!kwData && !kwLoading && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-warm mb-5">Find likely search phrases for {businessName}, based on your profile and real customer reviews.</p>
+                  <button onClick={findKeywords} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Find keywords</button>
+                  {kwError && <p className="text-sm text-red-500 mt-3">{kwError}</p>}
+                </div>
+              )}
+              {kwLoading && <div className="text-center py-12"><RefreshCw className="w-6 h-6 text-orange animate-spin mx-auto" /></div>}
+              {kwData && (
+                <div>
+                  <p className="text-xs text-gray-warm mb-4">Estimated from your profile and reviews, not live search volume data.</p>
+                  <p className="text-xs font-medium text-gray-warm mb-2">What customers likely search</p>
+                  <div className="space-y-1.5 mb-5">
+                    {kwData.likelySearches.map((k, i) => (
+                      <div key={i} className="flex items-center justify-between bg-cream px-3 py-2.5 rounded-lg">
+                        <span className="text-sm">{k.phrase}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-md ${k.relevance === "high" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{k.relevance === "high" ? "High" : "Medium"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs font-medium text-gray-warm mb-2">Real phrases from your reviews</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {kwData.fromReviews.map((p, i) => (
+                      <span key={i} className="text-xs bg-cream px-2.5 py-1.5 rounded-full">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {["nap", "qa", "posts", "photos"].includes(toolId) && (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4">{meta && <meta.icon className="w-7 h-7 text-gray-warm" />}</div>
+              <p className="text-sm text-gray-warm">This tool is coming soon.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LockedTabMessage({ onUpgrade }: { onUpgrade: () => void }) {
   return (
     <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
