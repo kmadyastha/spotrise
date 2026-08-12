@@ -164,7 +164,8 @@ export default function SpotRisePage() {
 
   /* Reviews */
   const [reviewFilter, setReviewFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
-  const [visibleReviewCount, setVisibleReviewCount] = useState(50);
+  const [loadingMoreReviews, setLoadingMoreReviews] = useState(false);
+  const [loadMoreReviewsError, setLoadMoreReviewsError] = useState<string | null>(null);
 
   /* UI */
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "posts" | "competitors" | "tools">("overview");
@@ -297,7 +298,6 @@ export default function SpotRisePage() {
           aiReply: r.ai_reply || undefined,
         }))
       );
-      setVisibleReviewCount(50);
       setLivePosts(
         (data.posts ?? []).map((p: any, i: number) => ({
           id: i,
@@ -368,7 +368,6 @@ export default function SpotRisePage() {
           date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
           sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
         })));
-        setVisibleReviewCount(50);
         setLivePosts((data.posts ?? []).map((p: any, i: number) => ({
           id: i, type: p.type, title: p.title, content: p.content,
           date: new Date(p.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
@@ -628,13 +627,46 @@ export default function SpotRisePage() {
         date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
         sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
       })));
-      setVisibleReviewCount(50);
       const wpRes = await fetch(`/api/weekly-pulse?businessId=${liveSnapshot.businessId}`);
       setWeeklyPulse(await wpRes.json());
     } catch (err) {
       console.error("refresh-audit failed:", err);
     } finally {
       setRefreshingAudit(false);
+    }
+  };
+
+  const handleLoadMoreReviews = async () => {
+    if (!liveSnapshot?.businessId) return;
+    setLoadingMoreReviews(true);
+    setLoadMoreReviewsError(null);
+    try {
+      const res = await fetch("/api/load-more-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: liveSnapshot.businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("load-more-reviews error:", data);
+        setLoadMoreReviewsError(
+          data.error === "max_reached" ? "You've loaded the maximum of 80 reviews." :
+          data.error === "outscraper_error" ? "Couldn't fetch more reviews right now. Try again in a moment." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong loading more reviews."
+        );
+        return;
+      }
+      setLiveReviews((data.reviews ?? []).map((r: any, i: number) => ({
+        id: i, dbId: r.id, author: r.author, rating: r.rating, text: r.text,
+        date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
+        sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
+      })));
+    } catch (err) {
+      console.error("load-more-reviews failed:", err);
+      setLoadMoreReviewsError("Something went wrong loading more reviews.");
+    } finally {
+      setLoadingMoreReviews(false);
     }
   };
 
@@ -1277,7 +1309,7 @@ export default function SpotRisePage() {
               </div>
             </div>
             <div className="space-y-4">
-              {(userState !== "pro" ? filteredReviews.slice(0, 1) : filteredReviews.slice(0, visibleReviewCount)).map((review) => (
+              {(userState !== "pro" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
                 <div key={review.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -1331,21 +1363,23 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
-            {userState === "pro" && filteredReviews.length > 0 && (
+            {userState === "pro" && liveReviews.length > 0 && (
               <div className="text-center">
                 <p className="text-xs text-gray-warm mb-3">
-                  Showing {Math.min(visibleReviewCount, filteredReviews.length)} of {filteredReviews.length} reviews we've pulled in
-                  {liveSnapshot && liveSnapshot.reviewsCount > filteredReviews.length && (
+                  Showing {liveReviews.length} of {liveSnapshot?.reviewsCount ?? liveReviews.length} reviews we've pulled in
+                  {liveSnapshot && liveSnapshot.reviewsCount > 80 && (
                     <> — this business has {liveSnapshot.reviewsCount} total on Google; we track your most recent 80</>
                   )}
                 </p>
-                {visibleReviewCount < filteredReviews.length && visibleReviewCount < 80 && (
+                {liveReviews.length < 80 && liveSnapshot && liveReviews.length < liveSnapshot.reviewsCount && (
                   <button
-                    onClick={() => setVisibleReviewCount((n) => Math.min(n + 10, 80))}
-                    className="px-5 py-2 rounded-lg bg-white border border-border-warm text-sm font-medium text-charcoal hover:bg-cream-dark transition-colors">
-                    Load 10 more
+                    onClick={handleLoadMoreReviews}
+                    disabled={loadingMoreReviews}
+                    className="px-5 py-2 rounded-lg bg-white border border-border-warm text-sm font-medium text-charcoal hover:bg-cream-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {loadingMoreReviews ? "Loading..." : "Load 10 more"}
                   </button>
                 )}
+                {loadMoreReviewsError && <p className="text-xs text-red-500 mt-2">{loadMoreReviewsError}</p>}
               </div>
             )}
             {userState !== "pro" && (
