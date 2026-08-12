@@ -154,6 +154,7 @@ export default function SpotRisePage() {
 
   /* Competitors */
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [confirmRemoveCompetitor, setConfirmRemoveCompetitor] = useState<{ id: string; name: string; message: string } | null>(null);
   const [compSearchName, setCompSearchName] = useState("");
   const [compSearchLoc, setCompSearchLoc] = useState("");
   const [compSearchStatus, setCompSearchStatus] = useState<"idle" | "searching" | "confirming" | "analyzing">("idle");
@@ -500,10 +501,11 @@ export default function SpotRisePage() {
     }
   };
 
-  const removeCompetitor = async (id: string) => {
+  const requestRemoveCompetitor = async (id: string, name: string) => {
     // Fetch current quota usage first so the confirmation message is
     // accurate ("3 of 5 used"), and gets a distinct warning on the
-    // last available action.
+    // last available action. Shown in our own styled modal below —
+    // not the native browser confirm() dialog.
     let used = 0, limit = 5;
     try {
       const quotaRes = await fetch("/api/competitor-quota");
@@ -515,11 +517,16 @@ export default function SpotRisePage() {
     }
 
     const message = used >= limit - 1
-      ? `This will use your last competitor change for this membership month (${used} of ${limit} already used). You won't be able to add or remove any more competitors until your next membership month starts. Are you sure?`
-      : `Removing this competitor will use ${used + 1} of ${limit} competitor changes for this membership month. Continue?`;
+      ? `This will use your last competitor change for this membership month (${used} of ${limit} already used). You won't be able to add or remove any more competitors until your next membership month starts.`
+      : `Removing this competitor will use ${used + 1} of ${limit} competitor changes for this membership month.`;
 
-    if (!window.confirm(message)) return;
+    setConfirmRemoveCompetitor({ id, name, message });
+  };
 
+  const doRemoveCompetitor = async () => {
+    if (!confirmRemoveCompetitor) return;
+    const { id } = confirmRemoveCompetitor;
+    setConfirmRemoveCompetitor(null);
     setCompetitors((c) => c.filter((comp) => comp.id !== id));
     try {
       await fetch(`/api/remove-competitor?id=${id}`, { method: "DELETE" });
@@ -1396,7 +1403,7 @@ export default function SpotRisePage() {
                       <div key={comp.id} className="p-4 rounded-xl bg-cream border border-border-warm">
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-medium text-sm">{comp.name}</span>
-                          <button onClick={() => removeCompetitor(comp.id)} className="text-gray-warm/50 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => requestRemoveCompetitor(comp.id, comp.name)} className="text-gray-warm/50 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
                         <div className="space-y-2">
                           {comp.gapInsights.length === 0 ? (
@@ -1485,6 +1492,13 @@ export default function SpotRisePage() {
         compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc}
         status={compSearchStatus} matches={compMatches} error={compError} />
       <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} />
+      <RemoveCompetitorModal
+        open={!!confirmRemoveCompetitor}
+        name={confirmRemoveCompetitor?.name ?? ""}
+        message={confirmRemoveCompetitor?.message ?? ""}
+        onClose={() => setConfirmRemoveCompetitor(null)}
+        onConfirm={doRemoveCompetitor}
+      />
     </div>
   );
 }
@@ -1887,6 +1901,22 @@ function FinalChangeModal({ open, onClose, onConfirm }: { open: boolean; onClose
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors">Cancel</button>
           <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors">Confirm Change</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function RemoveCompetitorModal({ open, name, message, onClose, onConfirm }: { open: boolean; name: string; message: string; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Remove Competitor">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-amber-600" /></div>
+        <p className="text-gray-warm mb-1">Remove <strong className="text-charcoal">{name}</strong> from your tracked competitors?</p>
+        <p className="text-sm text-gray-warm mb-5">{message}</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Cancel</button>
+          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors">Remove</button>
         </div>
       </div>
     </Modal>
