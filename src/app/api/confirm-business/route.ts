@@ -83,8 +83,9 @@ export async function POST(request: Request) {
 
     // ---- Real review text via Outscraper ----
     // Free tier: fetch 10 (analysis only — display still caps at 1).
-    // Pro tier: fetch 50 (analysis AND full display).
-    const fetchCount = isPro ? 50 : 10;
+    // Pro tier: fetch up to 80 — 50 shown initially in the Reviews tab,
+    // with a "Load 10 more" button revealing the rest up to 80 total.
+    const fetchCount = isPro ? 80 : 10;
     let outscraperReviews: any[] = [];
     try {
       const outscraperRes = await fetch(

@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     let outscraperReviews: any[] = [];
     try {
       const outscraperRes = await fetch(
-        `https://api.app.outscraper.com/maps/reviews-v2?query=${encodeURIComponent(business.place_id)}&reviewsLimit=50&sort=newest&async=false`,
+        `https://api.app.outscraper.com/maps/reviews-v2?query=${encodeURIComponent(business.place_id)}&reviewsLimit=80&sort=newest&async=false`,
         { headers: { "X-API-KEY": process.env.OUTSCRAPER_API_KEY! } }
       );
       const outscraperData = await outscraperRes.json();

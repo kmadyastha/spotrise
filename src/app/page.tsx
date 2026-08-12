@@ -164,6 +164,7 @@ export default function SpotRisePage() {
 
   /* Reviews */
   const [reviewFilter, setReviewFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
+  const [visibleReviewCount, setVisibleReviewCount] = useState(50);
 
   /* UI */
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "posts" | "competitors" | "tools">("overview");
@@ -296,6 +297,7 @@ export default function SpotRisePage() {
           aiReply: r.ai_reply || undefined,
         }))
       );
+      setVisibleReviewCount(50);
       setLivePosts(
         (data.posts ?? []).map((p: any, i: number) => ({
           id: i,
@@ -366,6 +368,7 @@ export default function SpotRisePage() {
           date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
           sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
         })));
+        setVisibleReviewCount(50);
         setLivePosts((data.posts ?? []).map((p: any, i: number) => ({
           id: i, type: p.type, title: p.title, content: p.content,
           date: new Date(p.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
@@ -625,6 +628,7 @@ export default function SpotRisePage() {
         date: r.review_date ? new Date(r.review_date).toLocaleDateString() : "Recently",
         sentiment: r.sentiment, aiReply: r.ai_reply || undefined,
       })));
+      setVisibleReviewCount(50);
       const wpRes = await fetch(`/api/weekly-pulse?businessId=${liveSnapshot.businessId}`);
       setWeeklyPulse(await wpRes.json());
     } catch (err) {
@@ -1088,7 +1092,7 @@ export default function SpotRisePage() {
             {userState !== "pro" && liveSnapshot && (
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-soft/10 border border-blue-soft/25 text-sm text-blue-soft-dark">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>* Based on your latest {liveSnapshot.analysisReviewCount || 10} reviews. <button onClick={() => setShowUpgrade(true)} className="underline font-medium">Upgrade to Pro</button> for a comprehensive audit using up to 50 reviews.</span>
+                <span>* Based on your latest {liveSnapshot.analysisReviewCount || 10} reviews. <button onClick={() => setShowUpgrade(true)} className="underline font-medium">Upgrade to Pro</button> for a comprehensive audit using up to 80 reviews.</span>
               </div>
             )}
 
@@ -1273,7 +1277,7 @@ export default function SpotRisePage() {
               </div>
             </div>
             <div className="space-y-4">
-              {(userState !== "pro" ? filteredReviews.slice(0, 1) : filteredReviews).map((review) => (
+              {(userState !== "pro" ? filteredReviews.slice(0, 1) : filteredReviews.slice(0, visibleReviewCount)).map((review) => (
                 <div key={review.id} className="rounded-2xl bg-white border border-border-warm shadow-sm p-5 hover:border-orange/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -1327,10 +1331,22 @@ export default function SpotRisePage() {
                 </div>
               ))}
             </div>
+            {userState === "pro" && filteredReviews.length > 0 && (
+              <div className="text-center">
+                <p className="text-xs text-gray-warm mb-3">Showing {Math.min(visibleReviewCount, filteredReviews.length)} of {filteredReviews.length} reviews</p>
+                {visibleReviewCount < filteredReviews.length && visibleReviewCount < 80 && (
+                  <button
+                    onClick={() => setVisibleReviewCount((n) => Math.min(n + 10, 80))}
+                    className="px-5 py-2 rounded-lg bg-white border border-border-warm text-sm font-medium text-charcoal hover:bg-cream-dark transition-colors">
+                    Load 10 more
+                  </button>
+                )}
+              </div>
+            )}
             {userState !== "pro" && (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-8 text-center">
                 <Lock className="w-8 h-8 text-gray-warm/40 mx-auto mb-3" />
-                <p className="text-sm text-gray-warm">We analyze your {liveSnapshot?.analysisReviewCount || 10} most recent reviews. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to see up to 50 reviews with AI replies.</p>
+                <p className="text-sm text-gray-warm">We analyze your {liveSnapshot?.analysisReviewCount || 10} most recent reviews. <button onClick={() => setShowUpgrade(true)} className="text-orange hover:underline">Upgrade to Pro</button> to see up to 80 reviews with AI replies.</p>
               </div>
             )}
           </div>
