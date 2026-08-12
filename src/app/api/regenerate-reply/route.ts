@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     const { reviewId, businessName, reviewText, reviewRating } = await request.json();
-    if (!reviewId || !reviewText) {
+    if (!reviewId) {
       return NextResponse.json({ error: "missing_fields" }, { status: 400 });
     }
 
@@ -45,9 +45,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const prompt = `You are a local-business consultant drafting a reply for "${businessName}" to this ${reviewRating}-star review: "${reviewText}"
+    const prompt = `You are a local-business consultant drafting a reply for "${businessName}" to this ${reviewRating}-star review${
+      reviewText ? `: "${reviewText}"` : " (the customer left only a star rating, no written comment)"
+    }.
 
-Respond with ONLY the reply text — no JSON, no quotes, no commentary. Keep it warm, specific to this review's content, under 40 words, and professional.`;
+Respond with ONLY the reply text — no JSON, no quotes, no commentary. Keep it warm, ${reviewText ? "specific to this review's content, " : "genuinely appreciative and inviting them to share more detail, "}under 40 words, and professional.`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
