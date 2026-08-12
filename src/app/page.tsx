@@ -151,6 +151,7 @@ export default function SpotRisePage() {
   const [showAlreadyChanged, setShowAlreadyChanged] = useState(false);
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [showCompetitorUpgrade, setShowCompetitorUpgrade] = useState(false);
+  const [showManageSubscription, setShowManageSubscription] = useState(false);
 
   /* Competitors */
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -741,7 +742,13 @@ export default function SpotRisePage() {
                   {userState !== "pro" && (
                     <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
                   )}
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><User className="w-4 h-4 text-gray-warm" /></div>
+                  <ProfileMenu
+                    userEmail={userEmail}
+                    userState={userState}
+                    onSignOut={handleSignOut}
+                    onUpgrade={() => setShowUpgrade(true)}
+                    onManageSubscription={() => setShowManageSubscription(true)}
+                  />
                 </div>
               )}
             </div>
@@ -986,6 +993,7 @@ export default function SpotRisePage() {
         <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
         <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
+        <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
       </div>
     );
   }
@@ -1024,9 +1032,13 @@ export default function SpotRisePage() {
                 {userState !== "pro" && (
                   <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
                 )}
-                <button onClick={handleSignOut} title={userEmail ?? undefined} className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-cream-dark transition-colors" aria-label="Sign out">
-                  <User className="w-4 h-4 text-gray-warm" />
-                </button>
+                <ProfileMenu
+                  userEmail={userEmail}
+                  userState={userState}
+                  onSignOut={handleSignOut}
+                  onUpgrade={() => setShowUpgrade(true)}
+                  onManageSubscription={() => setShowManageSubscription(true)}
+                />
               </div>
             )}
           </div>
@@ -1546,6 +1558,7 @@ export default function SpotRisePage() {
         onClose={() => setConfirmRemoveCompetitor(null)}
         onConfirm={doRemoveCompetitor}
       />
+      <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
     </div>
   );
 }
@@ -1965,6 +1978,77 @@ function RemoveCompetitorModal({ open, name, message, onClose, onConfirm }: { op
           <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Cancel</button>
           <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors">Remove</button>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ================================================================
+   PROFILE MENU — replaces the old dead landing-page icon (no click
+   handler at all) and the old dashboard icon (signed the person out
+   immediately on click, no menu, no visible "Logout" label). Now a
+   real dropdown: email + plan, a subscription placeholder (real
+   Stripe wiring comes later), and an explicit Log out action.
+   ================================================================ */
+function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubscription }: {
+  userEmail: string | null;
+  userState: UserState;
+  onSignOut: () => void;
+  onUpgrade: () => void;
+  onManageSubscription: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-cream-dark transition-colors"
+        aria-label="Account menu"
+      >
+        <User className="w-4 h-4 text-gray-warm" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-white border border-border-warm shadow-lg z-50 overflow-hidden">
+            {userEmail && (
+              <div className="px-4 py-3 border-b border-border-warm">
+                <p className="text-xs text-gray-warm truncate">{userEmail}</p>
+                <span className={`inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
+                  {userState === "pro" ? "Pro Plan" : "Free Plan"}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => { setOpen(false); userState === "pro" ? onManageSubscription() : onUpgrade(); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-cream transition-colors flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4 text-orange" />
+              {userState === "pro" ? "Manage Subscription" : "Upgrade to Pro"}
+            </button>
+            <button
+              onClick={() => { setOpen(false); onSignOut(); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-cream transition-colors flex items-center gap-2 border-t border-border-warm"
+            >
+              <X className="w-4 h-4" />
+              Log out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ManageSubscriptionModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Manage Subscription">
+      <div className="text-center py-4">
+        <div className="w-14 h-14 rounded-full bg-orange-light flex items-center justify-center mx-auto mb-4"><Sparkles className="w-7 h-7 text-orange" /></div>
+        <p className="text-gray-warm mb-1">Subscription management is coming soon.</p>
+        <p className="text-sm text-gray-warm mb-5">Once billing is wired up, you'll be able to update your plan, payment method, and billing details right here.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Got it</button>
       </div>
     </Modal>
   );

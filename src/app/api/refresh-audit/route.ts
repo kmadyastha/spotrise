@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     const detailsRes = await fetch(
       `https://places.googleapis.com/v1/places/${business.place_id}`,
-      { headers: { "X-Goog-Api-Key": apiKey!, "X-Goog-FieldMask": "rating,userRatingCount,photos" } }
+      { headers: { "X-Goog-Api-Key": apiKey!, "X-Goog-FieldMask": "formattedAddress,rating,userRatingCount,photos" } }
     );
     const details = await detailsRes.json();
     if (!detailsRes.ok) {

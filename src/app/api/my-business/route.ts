@@ -89,7 +89,41 @@ export async function GET() {
       .order("added_at", { ascending: false });
 
     // Reconstruct address from the raw Places data saved on the snapshot.
-    const address = snapshot?.raw_data?.formattedAddress ?? "";
+    // The latest snapshot might be one created by refresh-audit before
+    // its field mask included formattedAddress (now fixed going forward),
+    // so first scan the last several snapshots for one that has it —
+    // done in code rather than a DB-side JSON filter, so it doesn't
+    // depend on raw_data's exact column type/indexing being filter-
+    // friendly. If literally none of them have it (e.g. this business's
+    // very first snapshot predates formattedAddress being requested at
+    // all), fetch it live from Google Places as a last resort — a single
+    // cheap details call, and self-healing for any historical gap.
+    let address = snapshot?.raw_data?.formattedAddress ?? "";
+    if (!address) {
+      const { data: recentSnapshots } = await supabase
+        .from("audit_snapshots")
+        .select("raw_data")
+        .eq("business_id", business.id)
+        .order("scraped_at", { ascending: false })
+        .limit(10);
+      address = (recentSnapshots ?? []).map((s) => s.raw_data?.formattedAddress).find(Boolean) ?? "";
+    }
+    if (!address && business.place_id) {
+      try {
+        const detailsRes = await fetch(
+          `https://places.googleapis.com/v1/places/${business.place_id}`,
+          { headers: { "X-Goog-Api-Key": process.env.GOOGLE_PLACES_API_KEY!, "X-Goog-FieldMask": "formattedAddress" } }
+        );
+        if (detailsRes.ok) {
+          const details = await detailsRes.json();
+          address = details.formattedAddress ?? "";
+        } else {
+          console.error("my-business: live address fallback failed:", await detailsRes.text());
+        }
+      } catch (err) {
+        console.error("my-business: live address fallback request failed:", err);
+      }
+    }
 
     const cleanedReviews = (reviews ?? []).map((r) => ({ ...r, ai_reply: cleanLegacyReply(r.ai_reply) }));
 
