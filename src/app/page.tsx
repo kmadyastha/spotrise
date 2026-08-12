@@ -382,10 +382,16 @@ export default function SpotRisePage() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
-        loadMySession();
+        // Wait for the real plan + business data to load before ever
+        // rendering anything — otherwise the landing page renders first
+        // (userState still defaults to "anonymous" for that instant),
+        // which can open the login modal on a field click even though
+        // the person is already logged in, right before the dashboard
+        // swaps in underneath it.
+        await loadMySession();
         resumePendingSearch();
       }
       setAuthLoading(false);
@@ -404,6 +410,16 @@ export default function SpotRisePage() {
 
     return () => listener.subscription.unsubscribe();
   }, [supabase, resumePendingSearch, loadMySession]);
+
+  // Belt-and-suspenders: if the login modal is somehow open when the
+  // person turns out to already be logged in (any remaining race, or a
+  // stale click that landed a moment before state updated), close it
+  // automatically instead of leaving it stuck over the dashboard.
+  useEffect(() => {
+    if (userState !== "anonymous" && showLogin) {
+      setShowLogin(false);
+    }
+  }, [userState, showLogin]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -548,8 +564,10 @@ export default function SpotRisePage() {
   };
 
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [regenerateErrors, setRegenerateErrors] = useState<Record<number, string>>({});
   const handleRegenerateReply = async (displayId: number, dbId: string, text: string, rating: number) => {
     setRegeneratingId(displayId);
+    setRegenerateErrors((prev) => { const next = { ...prev }; delete next[displayId]; return next; });
     try {
       const res = await fetch("/api/regenerate-reply", {
         method: "POST",
@@ -561,9 +579,17 @@ export default function SpotRisePage() {
         setLiveReviews((prev) => prev.map((r) => r.id === displayId ? { ...r, aiReply: data.reply } : r));
       } else {
         console.error("regenerate-reply error:", data);
+        setRegenerateErrors((prev) => ({
+          ...prev,
+          [displayId]:
+            data.error === "not_found" ? "Couldn't verify this review belongs to your account — try refreshing the page." :
+            data.error === "claude_error" ? "The AI reply generator is temporarily unavailable. Try again in a moment." :
+            "Something went wrong generating a reply. Try again.",
+        }));
       }
     } catch (err) {
       console.error("regenerate-reply failed:", err);
+      setRegenerateErrors((prev) => ({ ...prev, [displayId]: "Something went wrong generating a reply. Try again." }));
     } finally {
       setRegeneratingId(null);
     }
@@ -613,6 +639,25 @@ export default function SpotRisePage() {
     if (p === "medium") return "bg-amber-100 text-amber-700 border-amber-200";
     return "bg-blue-100 text-blue-700 border-blue-200";
   };
+
+  /* ================================================================
+     AUTH LOADING — shown while we check for an existing session and,
+     if one exists, load the real plan + business data. Prevents the
+     marketing landing page from flashing for an already-logged-in
+     returning user (e.g. right after clicking a magic link), which is
+     what let the login modal get triggered on a stray click a moment
+     before the dashboard swapped in underneath it.
+     ================================================================ */
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="relative w-10 h-10">
+          <div className="absolute inset-0 rounded-full border-4 border-orange-light" />
+          <div className="absolute inset-0 rounded-full border-4 border-orange border-t-transparent animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   /* ================================================================
      BUSINESS CONFIRMATION — real Places results, user picks theirs
@@ -1253,6 +1298,7 @@ export default function SpotRisePage() {
                           {regeneratingId === review.id ? "Regenerating..." : "Regenerate"}
                         </button>
                       </div>
+                      {regenerateErrors[review.id] && <p className="text-xs text-red-500 mt-2">{regenerateErrors[review.id]}</p>}
                     </div>
                   )}
                   {userState === "pro" && !review.aiReply && "dbId" in review && (
@@ -1263,6 +1309,7 @@ export default function SpotRisePage() {
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-light text-orange text-xs font-medium hover:bg-orange/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         <Sparkles className="w-3.5 h-3.5" />{regeneratingId === review.id ? "Generating..." : "Generate Reply"}
                       </button>
+                      {regenerateErrors[review.id] && <p className="text-xs text-red-500 mt-2">{regenerateErrors[review.id]}</p>}
                     </div>
                   )}
                 </div>

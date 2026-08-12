@@ -17,13 +17,31 @@ export async function POST(request: Request) {
 
     // Confirm this review actually belongs to a business owned by this
     // user, before spending an AI call or touching the database.
-    const { data: review } = await supabase
+    // Two simple queries instead of one embedded join — a join here
+    // depends on Supabase auto-detecting the reviews->businesses foreign
+    // key AND on RLS allowing the embedded businesses row to be visible
+    // in that shape; if either isn't right, it silently comes back empty
+    // with no way to tell which one failed. This version logs the real
+    // Supabase error at each step so a failure is actually diagnosable.
+    const { data: review, error: reviewError } = await supabase
       .from("reviews")
-      .select("id, business_id, businesses!inner(user_id)")
+      .select("id, business_id")
       .eq("id", reviewId)
       .single();
 
-    if (!review || (review as any).businesses.user_id !== user.id) {
+    if (reviewError || !review) {
+      console.error("regenerate-reply: review lookup failed:", reviewError);
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("user_id")
+      .eq("id", review.business_id)
+      .single();
+
+    if (businessError || !business || business.user_id !== user.id) {
+      console.error("regenerate-reply: business ownership check failed:", businessError);
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
