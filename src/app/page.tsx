@@ -22,8 +22,8 @@ interface Post {
   id: number; title: string; content: string; date: string; type: string;
 }
 interface Competitor {
-  id: number; name: string; score: number; reviews: number; rating: number;
-  photos: number; responseRate: number;
+  id: string; name: string; score: number; reviewsCount: number; rating: number;
+  photoCount: number; gapInsights: { type: string; text: string }[];
 }
 interface BusinessSlot {
   id: number; businessName: string | null; location: string | null; changed: boolean;
@@ -160,6 +160,9 @@ export default function SpotRisePage() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [compSearchName, setCompSearchName] = useState("");
   const [compSearchLoc, setCompSearchLoc] = useState("");
+  const [compSearchStatus, setCompSearchStatus] = useState<"idle" | "searching" | "confirming" | "analyzing">("idle");
+  const [compMatches, setCompMatches] = useState<{ placeId: string; name: string; address: string; rating: number | null; reviewCount: number }[]>([]);
+  const [compError, setCompError] = useState<string | null>(null);
 
   /* Reviews */
   const [reviewFilter, setReviewFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
@@ -369,6 +372,10 @@ export default function SpotRisePage() {
           id: i, type: p.type, title: p.title, content: p.content,
           date: new Date(p.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         })));
+        setCompetitors((data.competitors ?? []).map((c: any) => ({
+          id: c.id, name: c.name, score: c.score ?? 0, reviewsCount: c.reviews_count ?? 0,
+          rating: c.rating ?? 0, photoCount: c.photo_count ?? 0, gapInsights: c.gap_insights ?? [],
+        })));
         setHasSearched(true);
         setActiveTab("overview");
       }
@@ -410,6 +417,7 @@ export default function SpotRisePage() {
     setLiveActionItems([]);
     setLiveReviews([]);
     setLivePosts([]);
+    setCompetitors([]);
   };
 
   const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
@@ -432,25 +440,74 @@ export default function SpotRisePage() {
 
   const handleAddCompetitor = () => {
     if (userState !== "pro") { setShowCompetitorUpgrade(true); return; }
-    if (competitors.length >= 3) return;
+    if (competitors.length >= 2) return;
+    setCompMatches([]);
+    setCompSearchStatus("idle");
     setShowAddCompetitor(true);
   };
 
-  const confirmAddCompetitor = () => {
-    if (!compSearchName.trim() || !compSearchLoc.trim()) return;
-    const newComp: Competitor = {
-      id: Date.now(), name: compSearchName,
-      score: Math.floor(Math.random() * 30) + 60,
-      reviews: Math.floor(Math.random() * 300) + 50,
-      rating: Number((Math.random() * 1.5 + 3.5).toFixed(1)),
-      photos: Math.floor(Math.random() * 100) + 10,
-      responseRate: Math.floor(Math.random() * 80) + 10,
-    };
-    setCompetitors((c) => [...c, newComp]);
-    setCompSearchName(""); setCompSearchLoc(""); setShowAddCompetitor(false);
+  const searchCompetitor = async () => {
+    if (!compSearchName.trim() || !compSearchLoc.trim() || !liveSnapshot?.businessId) return;
+    setCompSearchStatus("searching");
+    setCompError(null);
+    try {
+      const res = await fetch("/api/search-competitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: liveSnapshot.businessId, competitorName: compSearchName, location: compSearchLoc }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCompError(data.error === "competitor_limit_reached" ? "You've already got 2 competitors tracked — remove one first." : "Something went wrong searching. Try again.");
+        setCompSearchStatus("idle");
+        return;
+      }
+      setCompMatches(data.matches ?? []);
+      setCompSearchStatus("confirming");
+    } catch {
+      setCompError("Something went wrong searching. Try again.");
+      setCompSearchStatus("idle");
+    }
   };
 
-  const removeCompetitor = (id: number) => { setCompetitors((c) => c.filter((comp) => comp.id !== id)); };
+  const confirmAddCompetitor = async (placeId: string, name: string) => {
+    if (!liveSnapshot?.businessId) return;
+    setCompSearchStatus("analyzing");
+    setCompError(null);
+    try {
+      const res = await fetch("/api/confirm-competitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: liveSnapshot.businessId, placeId, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCompError(data.error === "competitor_limit_reached" ? "You've already got 2 competitors tracked — remove one first." : "Something went wrong analyzing this competitor.");
+        setCompSearchStatus("confirming");
+        return;
+      }
+      const c = data.competitor;
+      setCompetitors((prev) => [...prev, {
+        id: c.id, name: c.name, score: c.score, reviewsCount: c.reviews_count,
+        rating: c.rating, photoCount: c.photo_count, gapInsights: c.gap_insights ?? [],
+      }]);
+      setCompSearchName(""); setCompSearchLoc(""); setCompMatches([]);
+      setShowAddCompetitor(false);
+      setCompSearchStatus("idle");
+    } catch {
+      setCompError("Something went wrong analyzing this competitor.");
+      setCompSearchStatus("confirming");
+    }
+  };
+
+  const removeCompetitor = async (id: string) => {
+    setCompetitors((c) => c.filter((comp) => comp.id !== id));
+    try {
+      await fetch(`/api/remove-competitor?id=${id}`, { method: "DELETE" });
+    } catch (err) {
+      console.error("remove-competitor failed:", err);
+    }
+  };
 
   const copyPost = (id: number, content: string) => {
     navigator.clipboard.writeText(content);
@@ -1237,9 +1294,9 @@ export default function SpotRisePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
-                <p className="text-sm text-gray-warm mt-1">{userState === "pro" ? `Track ${competitors.length} of 3 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
+                <p className="text-sm text-gray-warm mt-1">{userState === "pro" ? `Track ${competitors.length} of 2 competitors` : "Upgrade to Pro to unlock competitor gap analysis"}</p>
               </div>
-              {userState === "pro" && competitors.length < 3 && (
+              {userState === "pro" && competitors.length < 2 && (
                 <button onClick={handleAddCompetitor} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">
                   <Plus className="w-4 h-4" />Add Competitor
                 </button>
@@ -1264,7 +1321,7 @@ export default function SpotRisePage() {
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-12 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-gray-warm/50" /></div>
                 <h3 className="text-lg font-semibold mb-2">No Competitors Added</h3>
-                <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">Add up to 3 competitors to see gap analysis and opportunities.</p>
+                <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">Add up to 2 competitors to see gap analysis and opportunities.</p>
                 <button onClick={handleAddCompetitor} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors flex items-center gap-2 mx-auto">
                   <Plus className="w-4 h-4" />Add Your First Competitor
                 </button>
@@ -1286,30 +1343,25 @@ export default function SpotRisePage() {
                       </thead>
                       <tbody>
                         {[
-                          { label: "Audit Score", key: "score", unit: "" },
-                          { label: "Reviews", key: "reviews", unit: "" },
-                          { label: "Rating", key: "rating", unit: "★" },
-                          { label: "Photos", key: "photos", unit: "" },
-                          { label: "Response Rate", key: "responseRate", unit: "%" },
+                          { label: "Audit Score", key: "score", mine: score, unit: "" },
+                          { label: "Reviews", key: "reviewsCount", mine: liveSnapshot?.reviewsCount ?? 0, unit: "" },
+                          { label: "Rating", key: "rating", mine: liveSnapshot?.rating.toFixed(1) ?? "0", unit: "★" },
+                          { label: "Photos", key: "photoCount", mine: liveSnapshot?.photoCount ?? 0, unit: "" },
                         ].map((row) => (
                           <tr key={row.key} className="border-b border-border-warm last:border-0">
                             <td className="p-4 text-gray-warm">{row.label}</td>
-                            <td className="p-4 text-center font-medium">
-                              {row.key === "score" ? score : row.key === "reviews" ? 142 : row.key === "rating" ? "4.2" : row.key === "photos" ? 12 : 23}{row.unit}
-                            </td>
-                            {competitors.map((c) => (
-                              <td key={c.id} className="p-4 text-center">
-                                <span className={`font-medium ${
-                                  row.key === "score" ? (c.score > score ? "text-red-500" : "text-emerald-600") :
-                                  row.key === "reviews" ? (c.reviews > 142 ? "text-red-500" : "text-emerald-600") :
-                                  row.key === "rating" ? (c.rating > 4.2 ? "text-red-500" : "text-emerald-600") :
-                                  row.key === "photos" ? (c.photos > 12 ? "text-red-500" : "text-emerald-600") :
-                                  (c.responseRate > 23 ? "text-red-500" : "text-emerald-600")
-                                }`}>
-                                  {c[row.key as keyof Competitor]}{row.unit}
-                                </span>
-                              </td>
-                            ))}
+                            <td className="p-4 text-center font-medium">{row.mine}{row.unit}</td>
+                            {competitors.map((c) => {
+                              const compVal = c[row.key as keyof Competitor] as number;
+                              const mineNum = Number(row.mine);
+                              return (
+                                <td key={c.id} className="p-4 text-center">
+                                  <span className={`font-medium ${compVal > mineNum ? "text-red-500" : compVal < mineNum ? "text-emerald-600" : "text-charcoal"}`}>
+                                    {compVal}{row.unit}
+                                  </span>
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>
@@ -1320,31 +1372,23 @@ export default function SpotRisePage() {
                 {/* Gap Analysis */}
                 <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-6">
                   <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-orange" />Gap Analysis & Opportunities</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {competitors.map((comp) => (
                       <div key={comp.id} className="p-4 rounded-xl bg-cream border border-border-warm">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-3">
                           <span className="font-medium text-sm">{comp.name}</span>
                           <button onClick={() => removeCompetitor(comp.id)} className="text-gray-warm/50 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
-                        {comp.reviews > 142 && (
-                          <div className="flex items-start gap-2 text-sm text-gray-warm">
-                            <TrendingDown className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                            <span>They have <strong className="text-charcoal">{comp.reviews - 142} more reviews</strong> than you. Focus on review generation campaigns.</span>
-                          </div>
-                        )}
-                        {comp.photos > 12 && (
-                          <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
-                            <TrendingDown className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                            <span>They have <strong className="text-charcoal">{comp.photos - 12} more photos</strong>. Add interior, menu, and team photos.</span>
-                          </div>
-                        )}
-                        {comp.score < score && (
-                          <div className="flex items-start gap-2 text-sm text-gray-warm mt-2">
-                            <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            <span>Your audit score is <strong className="text-charcoal">{score - comp.score} points higher</strong>. You're ahead on profile optimization!</span>
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          {comp.gapInsights.length === 0 ? (
+                            <p className="text-sm text-gray-warm">No insights generated yet.</p>
+                          ) : comp.gapInsights.map((insight, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm text-gray-warm">
+                              {insight.type === "gap" ? <TrendingDown className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> : <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+                              <span>{insight.text}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1418,7 +1462,9 @@ export default function SpotRisePage() {
       <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
       <FinalChangeModal open={showFinalChange} onClose={() => setShowFinalChange(false)} onConfirm={confirmChangeBusiness} />
       <AlreadyChangedModal open={showAlreadyChanged} onClose={() => setShowAlreadyChanged(false)} />
-      <AddCompetitorModal open={showAddCompetitor} onClose={() => setShowAddCompetitor(false)} onConfirm={confirmAddCompetitor} compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc} />
+      <AddCompetitorModal open={showAddCompetitor} onClose={() => setShowAddCompetitor(false)} onSearch={searchCompetitor} onConfirm={confirmAddCompetitor}
+        compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc}
+        status={compSearchStatus} matches={compMatches} error={compError} />
       <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} />
     </div>
   );
@@ -1841,25 +1887,73 @@ function AlreadyChangedModal({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-function AddCompetitorModal({ open, onClose, onConfirm, compSearchName, setCompSearchName, compSearchLoc, setCompSearchLoc }: { 
-  open: boolean; onClose: () => void; onConfirm: () => void; 
+function AddCompetitorModal({ open, onClose, onSearch, onConfirm, compSearchName, setCompSearchName, compSearchLoc, setCompSearchLoc, status, matches, error }: {
+  open: boolean; onClose: () => void; onSearch: () => void; onConfirm: (placeId: string, name: string) => void;
   compSearchName: string; setCompSearchName: (v: string) => void;
   compSearchLoc: string; setCompSearchLoc: (v: string) => void;
+  status: "idle" | "searching" | "confirming" | "analyzing";
+  matches: { placeId: string; name: string; address: string; rating: number | null; reviewCount: number }[];
+  error: string | null;
 }) {
   return (
     <Modal open={open} onClose={onClose} title="Add Competitor">
-      <p className="text-sm text-gray-warm mb-4">Search for a competitor by name and city to add them to your gap analysis.</p>
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
-          <Search className="w-5 h-5 text-gray-warm shrink-0" />
-          <input type="text" placeholder="Competitor name" value={compSearchName} onChange={(e) => setCompSearchName(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+      {status === "idle" && (
+        <>
+          <p className="text-sm text-gray-warm mb-4">Search for a competitor by name and city to add them to your gap analysis.</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+              <Search className="w-5 h-5 text-gray-warm shrink-0" />
+              <input type="text" placeholder="Competitor name" value={compSearchName} onChange={(e) => setCompSearchName(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
+              <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
+              <input type="text" placeholder="City" value={compSearchLoc} onChange={(e) => setCompSearchLoc(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <button onClick={onSearch} disabled={!compSearchName.trim() || !compSearchLoc.trim()} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Search</button>
+          </div>
+        </>
+      )}
+
+      {status === "searching" && (
+        <div className="text-center py-10">
+          <RefreshCw className="w-7 h-7 text-orange animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-warm">Searching nearby businesses...</p>
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream border border-border-warm">
-          <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
-          <input type="text" placeholder="City" value={compSearchLoc} onChange={(e) => setCompSearchLoc(e.target.value)} className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+      )}
+
+      {status === "confirming" && (
+        <>
+          <p className="text-sm text-gray-warm mb-4">Found {matches.length} match{matches.length !== 1 ? "es" : ""} — which one is it?</p>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {matches.map((m) => (
+              <button key={m.placeId} onClick={() => onConfirm(m.placeId, m.name)}
+                className="w-full text-left p-3 rounded-xl bg-cream border border-border-warm hover:border-orange/40 transition-colors flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate">{m.name}</div>
+                  <div className="text-xs text-gray-warm mt-0.5 truncate">{m.address}</div>
+                  {m.rating && <div className="flex items-center gap-1 mt-1 text-xs text-gray-warm"><Star className="w-3 h-3 text-amber-400 fill-amber-400" />{m.rating} ({m.reviewCount})</div>}
+                </div>
+                <span className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-orange-light text-orange font-medium">Select</span>
+              </button>
+            ))}
+            {matches.length === 0 && <p className="text-sm text-gray-warm text-center py-4">No matches found.</p>}
+          </div>
+          {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
+        </>
+      )}
+
+      {status === "analyzing" && (
+        <div className="text-center py-10">
+          <div className="relative w-14 h-14 mx-auto mb-5">
+            <div className="absolute inset-0 rounded-full border-4 border-orange-light" />
+            <div className="absolute inset-0 rounded-full border-4 border-orange border-t-transparent animate-spin" />
+            <Target className="w-5 h-5 text-orange absolute inset-0 m-auto" />
+          </div>
+          <p className="text-sm font-medium text-charcoal">Analyzing their profile...</p>
+          <p className="text-xs text-gray-warm mt-1">Comparing reviews, ratings, and finding real gaps</p>
         </div>
-        <button onClick={onConfirm} disabled={!compSearchName.trim() || !compSearchLoc.trim()} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Add Competitor</button>
-      </div>
+      )}
     </Modal>
   );
 }

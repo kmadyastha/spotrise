@@ -62,6 +62,12 @@ export async function GET() {
       .eq("business_id", business.id)
       .order("created_at", { ascending: false });
 
+    const { data: competitors } = await supabase
+      .from("competitors")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("added_at", { ascending: false });
+
     // Reconstruct address from the raw Places data saved on the snapshot.
     const address = snapshot?.raw_data?.formattedAddress ?? "";
 
@@ -75,6 +81,7 @@ export async function GET() {
       actionItems: actionItems ?? [],
       reviews: reviews ?? [],
       posts: posts ?? [],
+      competitors: competitors ?? [],
     });
   } catch (err) {
     console.error("my-business failed:", err);
