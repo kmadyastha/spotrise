@@ -25,6 +25,11 @@ export async function DELETE(request: Request) {
     const { error } = await supabase.from("competitors").delete().eq("id", competitorId);
     if (error) return NextResponse.json({ error: "db_error", details: error.message }, { status: 500 });
 
+    // Deleting always succeeds regardless of quota — only adding gets
+    // blocked once the monthly action limit is hit, so nobody ever gets
+    // stuck unable to remove a competitor they no longer want tracked.
+    await supabase.from("competitor_actions").insert({ user_id: user.id, business_id: (competitor as any).business_id, action: "delete" });
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("delete-competitor failed:", err);

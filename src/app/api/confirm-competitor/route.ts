@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { currentMembershipPeriodStart } from "@/lib/membership";
 import { NextResponse } from "next/server";
+
+const MONTHLY_ACTION_LIMIT = 5;
 
 function normalizeText(r: any): string {
   if (typeof r === "string") return r;
@@ -13,7 +16,7 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("plan, pro_since").eq("id", user.id).single();
     if (profile?.plan !== "pro") return NextResponse.json({ error: "pro_only" }, { status: 403 });
 
     const { businessId, placeId, name } = await request.json();
@@ -24,6 +27,19 @@ export async function POST(request: Request) {
 
     const { count } = await supabase.from("competitors").select("*", { count: "exact", head: true }).eq("business_id", businessId);
     if ((count ?? 0) >= 2) return NextResponse.json({ error: "competitor_limit_reached" }, { status: 403 });
+
+    // Monthly change quota — adds AND deletes both count, so someone
+    // can't cycle through unlimited competitors by repeatedly deleting
+    // and re-adding within the 2-slot cap.
+    const periodStart = currentMembershipPeriodStart(profile.pro_since ?? new Date());
+    const { count: actionsUsed } = await supabase
+      .from("competitor_actions")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", periodStart.toISOString());
+    if ((actionsUsed ?? 0) >= MONTHLY_ACTION_LIMIT) {
+      return NextResponse.json({ error: "monthly_action_limit_reached" }, { status: 403 });
+    }
 
     // Pull the user's own latest audit + a few real reviews, to ground
     // the comparison in specifics rather than just raw numbers.
@@ -106,6 +122,8 @@ Rules: 3-5 insights. "gap" = something the competitor does better that ${busines
     if (insertError) {
       return NextResponse.json({ error: "db_error", details: insertError.message }, { status: 500 });
     }
+
+    await supabase.from("competitor_actions").insert({ user_id: user.id, business_id: businessId, action: "add" });
 
     return NextResponse.json({ competitor });
   } catch (err) {

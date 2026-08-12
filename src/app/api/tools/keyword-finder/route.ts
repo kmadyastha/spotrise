@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { currentMembershipPeriodStart } from "@/lib/membership";
 import { NextResponse } from "next/server";
 
 const MONTHLY_LIMIT = 20;
@@ -12,15 +13,16 @@ export async function POST(request: Request) {
     const { businessId } = await request.json();
     if (!businessId) return NextResponse.json({ error: "missing_business_id" }, { status: 400 });
 
-    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("plan, pro_since").eq("id", user.id).single();
     if (profile?.plan !== "pro") return NextResponse.json({ error: "pro_only" }, { status: 403 });
 
     const { data: business } = await supabase.from("businesses").select("id, user_id, name").eq("id", businessId).single();
     if (!business || business.user_id !== user.id) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    // Membership-month, not calendar month — anchored to when this
+    // account actually went Pro (e.g. upgraded Aug 15 -> resets the 15th
+    // of each month, not the 1st), consistent with every other Pro quota.
+    const startOfMonth = currentMembershipPeriodStart(profile?.pro_since ?? new Date());
     const { count } = await supabase
       .from("tool_usage")
       .select("*", { count: "exact", head: true })

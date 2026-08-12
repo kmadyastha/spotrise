@@ -478,7 +478,11 @@ export default function SpotRisePage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setCompError(data.error === "competitor_limit_reached" ? "You've already got 2 competitors tracked — remove one first." : "Something went wrong analyzing this competitor.");
+        setCompError(
+          data.error === "competitor_limit_reached" ? "You've already got 2 competitors tracked — remove one first." :
+          data.error === "monthly_action_limit_reached" ? "You've used all 5 competitor changes for this membership month. More available once your next membership month starts." :
+          "Something went wrong analyzing this competitor."
+        );
         setCompSearchStatus("confirming");
         return;
       }
@@ -497,6 +501,25 @@ export default function SpotRisePage() {
   };
 
   const removeCompetitor = async (id: string) => {
+    // Fetch current quota usage first so the confirmation message is
+    // accurate ("3 of 5 used"), and gets a distinct warning on the
+    // last available action.
+    let used = 0, limit = 5;
+    try {
+      const quotaRes = await fetch("/api/competitor-quota");
+      const quota = await quotaRes.json();
+      used = quota.used ?? 0;
+      limit = quota.limit ?? 5;
+    } catch (err) {
+      console.error("competitor-quota failed:", err);
+    }
+
+    const message = used >= limit - 1
+      ? `This will use your last competitor change for this membership month (${used} of ${limit} already used). You won't be able to add or remove any more competitors until your next membership month starts. Are you sure?`
+      : `Removing this competitor will use ${used + 1} of ${limit} competitor changes for this membership month. Continue?`;
+
+    if (!window.confirm(message)) return;
+
     setCompetitors((c) => c.filter((comp) => comp.id !== id));
     try {
       await fetch(`/api/remove-competitor?id=${id}`, { method: "DELETE" });
