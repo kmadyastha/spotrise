@@ -1692,6 +1692,158 @@ function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: str
     }
   };
 
+  // NAP Checker state
+  const [napData, setNapData] = useState<{ canonical: { name: string; address: string; phone: string }; checklist: { platform: string; tip: string }[] } | null>(null);
+  const [napLoading, setNapLoading] = useState(false);
+  const [napError, setNapError] = useState<string | null>(null);
+  const [copiedNap, setCopiedNap] = useState(false);
+
+  const checkNap = async () => {
+    setNapLoading(true);
+    setNapError(null);
+    try {
+      const res = await fetch("/api/tools/nap-checker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("nap-checker error:", data);
+        setNapError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for NAP Checker (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong checking NAP consistency."
+        );
+        return;
+      }
+      setNapData(data);
+    } catch {
+      setNapError("Something went wrong checking NAP consistency.");
+    } finally {
+      setNapLoading(false);
+    }
+  };
+
+  const copyNap = () => {
+    if (!napData) return;
+    const text = `${napData.canonical.name}\n${napData.canonical.address}\n${napData.canonical.phone}`;
+    navigator.clipboard.writeText(text);
+    setCopiedNap(true);
+    setTimeout(() => setCopiedNap(false), 2000);
+  };
+
+  // Q&A Generator state
+  const [qaData, setQaData] = useState<{ question: string; answer: string }[] | null>(null);
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaError, setQaError] = useState<string | null>(null);
+  const [copiedQa, setCopiedQa] = useState<number | null>(null);
+
+  const generateQas = async () => {
+    setQaLoading(true);
+    setQaError(null);
+    try {
+      const res = await fetch("/api/tools/qa-generator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("qa-generator error:", data);
+        setQaError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for Q&A Generator (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong generating Q&As."
+        );
+        return;
+      }
+      setQaData(data.qas ?? []);
+    } catch {
+      setQaError("Something went wrong generating Q&As.");
+    } finally {
+      setQaLoading(false);
+    }
+  };
+
+  const copyQa = (i: number, q: string, a: string) => {
+    navigator.clipboard.writeText(`Q: ${q}\nA: ${a}`);
+    setCopiedQa(i);
+    setTimeout(() => setCopiedQa(null), 2000);
+  };
+
+  // Post Generator state
+  const [postFocus, setPostFocus] = useState("");
+  const [genPosts, setGenPosts] = useState<{ type: string; title: string; content: string }[] | null>(null);
+  const [postGenLoading, setPostGenLoading] = useState(false);
+  const [postGenError, setPostGenError] = useState<string | null>(null);
+  const [copiedGenPost, setCopiedGenPost] = useState<number | null>(null);
+
+  const generatePosts = async () => {
+    setPostGenLoading(true);
+    setPostGenError(null);
+    try {
+      const res = await fetch("/api/tools/post-generator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId, focus: postFocus }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("post-generator error:", data);
+        setPostGenError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for Post Generator (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong generating posts."
+        );
+        return;
+      }
+      setGenPosts(data.posts ?? []);
+    } catch {
+      setPostGenError("Something went wrong generating posts.");
+    } finally {
+      setPostGenLoading(false);
+    }
+  };
+
+  const copyGenPost = (i: number, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedGenPost(i);
+    setTimeout(() => setCopiedGenPost(null), 2000);
+  };
+
+  // Photo Strategy state
+  const [photoData, setPhotoData] = useState<{ category: string; why: string }[] | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const getPhotoStrategy = async () => {
+    setPhotoLoading(true);
+    setPhotoError(null);
+    try {
+      const res = await fetch("/api/tools/photo-strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("photo-strategy error:", data);
+        setPhotoError(
+          data.error === "monthly_limit_reached" ? "You've reached this month's limit for Photo Strategy (20 generations). Resets next month." :
+          data.error === "pro_only" ? "Your account isn't actually Pro in the database yet — the 'Upgrade to Pro' button only changes what's shown on screen right now, not your real plan." :
+          "Something went wrong getting photo recommendations."
+        );
+        return;
+      }
+      setPhotoData(data.recommendations ?? []);
+    } catch {
+      setPhotoError("Something went wrong getting photo recommendations.");
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-charcoal/40" onClick={onClose} />
@@ -1775,10 +1927,123 @@ function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: str
             </div>
           )}
 
-          {["nap", "qa", "posts", "photos"].includes(toolId) && (
-            <div className="text-center py-12">
-              <div className="w-14 h-14 rounded-2xl bg-cream flex items-center justify-center mx-auto mb-4">{meta && <meta.icon className="w-7 h-7 text-gray-warm" />}</div>
-              <p className="text-sm text-gray-warm">This tool is coming soon.</p>
+          {toolId === "nap" && (
+            <div>
+              {!napData && !napLoading && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-warm mb-5">Pull your canonical Name, Address, and Phone straight from Google Business Profile, plus a consistency checklist for Facebook, Bing Places, and Yelp.</p>
+                  <button onClick={checkNap} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Check NAP consistency</button>
+                  {napError && <p className="text-sm text-red-500 mt-3">{napError}</p>}
+                </div>
+              )}
+              {napLoading && <div className="text-center py-12"><RefreshCw className="w-6 h-6 text-orange animate-spin mx-auto" /></div>}
+              {napData && (
+                <div>
+                  <p className="text-xs font-medium text-gray-warm mb-2">Canonical NAP — use this exact version everywhere</p>
+                  <div className="p-4 rounded-xl bg-cream border border-border-warm mb-3">
+                    <p className="text-sm font-medium">{napData.canonical.name}</p>
+                    <p className="text-sm text-gray-warm mt-1">{napData.canonical.address || "No address on file"}</p>
+                    <p className="text-sm text-gray-warm mt-1">{napData.canonical.phone || "No phone listed on Google Business Profile"}</p>
+                    <button onClick={copyNap} className="mt-3 px-3 py-1.5 rounded-lg bg-white border border-border-warm text-xs font-medium hover:bg-cream-dark transition-colors">
+                      {copiedNap ? "Copied!" : "Copy NAP block"}
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium text-gray-warm mb-2">Consistency checklist</p>
+                  <div className="space-y-2">
+                    {napData.checklist.map((item, i) => (
+                      <div key={i} className="p-3 rounded-xl bg-cream border border-border-warm">
+                        <p className="text-xs font-semibold text-charcoal mb-1">{item.platform}</p>
+                        <p className="text-sm text-gray-warm">{item.tip}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {toolId === "qa" && (
+            <div>
+              {!qaData && !qaLoading && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-warm mb-5">Generate realistic customer questions for {businessName}'s Q&A section, with draft answers based on your real reviews.</p>
+                  <button onClick={generateQas} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Generate Q&As</button>
+                  {qaError && <p className="text-sm text-red-500 mt-3">{qaError}</p>}
+                </div>
+              )}
+              {qaLoading && <div className="text-center py-12"><RefreshCw className="w-6 h-6 text-orange animate-spin mx-auto" /></div>}
+              {qaData && (
+                <div>
+                  <p className="text-xs text-gray-warm mb-4">Review before posting — anything in brackets is a placeholder we couldn't infer from your reviews.</p>
+                  <div className="space-y-3">
+                    {qaData.map((qa, i) => (
+                      <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm">
+                        <p className="text-sm font-medium mb-1.5">{qa.question}</p>
+                        <p className="text-sm text-gray-warm leading-relaxed mb-3">{qa.answer}</p>
+                        <button onClick={() => copyQa(i, qa.question, qa.answer)} className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-xs font-medium hover:bg-cream-dark transition-colors">
+                          {copiedQa === i ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {toolId === "posts" && (
+            <div>
+              <p className="text-sm text-gray-warm mb-4">Generate fresh post ideas any time — not just the 4 from your last audit.</p>
+              <label className="text-sm font-medium block mb-1.5">What's this post about? (optional)</label>
+              <input type="text" value={postFocus} onChange={(e) => setPostFocus(e.target.value)} placeholder="Leave blank to let AI pick something from your reviews"
+                className="w-full mb-4 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-orange/50" />
+              <button onClick={generatePosts} disabled={postGenLoading}
+                className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50">
+                {postGenLoading ? "Generating..." : "Generate posts"}
+              </button>
+              {postGenError && <p className="text-sm text-red-500 mt-3">{postGenError}</p>}
+              {genPosts && genPosts.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-border-warm space-y-3">
+                  {genPosts.map((post, i) => (
+                    <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${POST_TYPE_STYLE[post.type] || "bg-white text-gray-warm"}`}>{post.type}</span>
+                      </div>
+                      <p className="text-sm font-medium mb-1">{post.title}</p>
+                      <p className="text-sm text-gray-warm leading-relaxed mb-3">{post.content}</p>
+                      <button onClick={() => copyGenPost(i, post.content)} className="px-3 py-1.5 rounded-lg bg-white border border-border-warm text-xs font-medium hover:bg-cream-dark transition-colors">
+                        {copiedGenPost === i ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {toolId === "photos" && (
+            <div>
+              {!photoData && !photoLoading && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-warm mb-5">Get AI recommendations on what photos to add and why — this tool suggests categories and reasoning only, it doesn't generate images.</p>
+                  <button onClick={getPhotoStrategy} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Get photo recommendations</button>
+                  {photoError && <p className="text-sm text-red-500 mt-3">{photoError}</p>}
+                </div>
+              )}
+              {photoLoading && <div className="text-center py-12"><RefreshCw className="w-6 h-6 text-orange animate-spin mx-auto" /></div>}
+              {photoData && (
+                <div className="space-y-3">
+                  {photoData.map((rec, i) => (
+                    <div key={i} className="p-4 rounded-xl bg-cream border border-border-warm flex gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-white border border-border-warm flex items-center justify-center shrink-0 text-xs font-bold text-orange">{i + 1}</div>
+                      <div>
+                        <p className="text-sm font-medium mb-1">{rec.category}</p>
+                        <p className="text-sm text-gray-warm leading-relaxed">{rec.why}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
