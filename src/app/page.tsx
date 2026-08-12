@@ -1333,7 +1333,12 @@ export default function SpotRisePage() {
             </div>
             {userState === "pro" && filteredReviews.length > 0 && (
               <div className="text-center">
-                <p className="text-xs text-gray-warm mb-3">Showing {Math.min(visibleReviewCount, filteredReviews.length)} of {filteredReviews.length} reviews</p>
+                <p className="text-xs text-gray-warm mb-3">
+                  Showing {Math.min(visibleReviewCount, filteredReviews.length)} of {filteredReviews.length} reviews we've pulled in
+                  {liveSnapshot && liveSnapshot.reviewsCount > filteredReviews.length && (
+                    <> — this business has {liveSnapshot.reviewsCount} total on Google; we track your most recent 80</>
+                  )}
+                </p>
                 {visibleReviewCount < filteredReviews.length && visibleReviewCount < 80 && (
                   <button
                     onClick={() => setVisibleReviewCount((n) => Math.min(n + 10, 80))}
