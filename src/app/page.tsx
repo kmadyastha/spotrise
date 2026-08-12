@@ -54,10 +54,6 @@ const MOCK_POSTS: Post[] = [
   { id: 4, title: "Behind the Scenes", content: "👨‍🍳 Meet Chef Marco! With 15 years of experience, he's the mastermind behind our signature dishes. Swipe to see his story.", date: "Sun, Aug 10", type: "Story" },
 ];
 
-const MOCK_COMPETITORS: Competitor[] = [
-  { id: 1, name: "Rival Bistro", score: 78, reviews: 312, rating: 4.3, photos: 89, responseRate: 45 },
-  { id: 2, name: "The Corner Cafe", score: 71, reviews: 198, rating: 4.1, photos: 34, responseRate: 22 },
-];
 
 const MOCK_ACTION_ITEMS: ActionItem[] = [
   { id: 1, priority: "high", title: "Response Rate Critical", description: "You're responding to only 23% of reviews. Top performers in your category reply within 24 hours to ALL reviews.", impact: "+15% customer trust" },
