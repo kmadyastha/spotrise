@@ -156,6 +156,18 @@ export default function SpotRisePage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [confirmingUpgrade, setConfirmingUpgrade] = useState(false);
+  // Geo-based pricing: India gets real Razorpay checkout in INR;
+  // everywhere else sees $ pricing with a waitlist capture until
+  // Stripe (pending invite) or Razorpay's international add-on is live.
+  const [visitorCountry, setVisitorCountry] = useState<string | null>(null);
+  const isIndia = visitorCountry ? visitorCountry === "IN" : true; // default to India while geo is still loading — the common case for now
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [cancelSubLoading, setCancelSubLoading] = useState(false);
+  const [cancelSubError, setCancelSubError] = useState<string | null>(null);
+  const [cancelSubSuccess, setCancelSubSuccess] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
@@ -425,6 +437,13 @@ export default function SpotRisePage() {
   }, [pollForProPlan]);
 
   useEffect(() => {
+    fetch("/api/geo")
+      .then((r) => r.json())
+      .then((data) => setVisitorCountry(data.country ?? null))
+      .catch(() => setVisitorCountry(null));
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null);
@@ -515,10 +534,10 @@ export default function SpotRisePage() {
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
-      const res = await fetch("/api/create-checkout-session", { method: "POST" });
+      const res = await fetch("/api/create-razorpay-subscription", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        console.error("create-checkout-session error:", data);
+        console.error("create-razorpay-subscription error:", data);
         setCheckoutError(
           data.error === "already_pro" ? "You're already on Pro." :
           "Something went wrong starting checkout. Try again in a moment."
@@ -527,26 +546,59 @@ export default function SpotRisePage() {
       }
       window.location.href = data.url;
     } catch (err) {
-      console.error("create-checkout-session failed:", err);
+      console.error("create-razorpay-subscription failed:", err);
       setCheckoutError("Something went wrong starting checkout. Try again in a moment.");
     } finally {
       setCheckoutLoading(false);
     }
   };
 
-  const handleManageSubscription = async () => {
+  const handleJoinWaitlist = async (email: string) => {
+    setWaitlistLoading(true);
+    setWaitlistError(null);
     try {
-      const res = await fetch("/api/create-portal-session", { method: "POST" });
+      const res = await fetch("/api/international-waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
       const data = await res.json();
       if (!res.ok) {
-        console.error("create-portal-session error:", data);
-        setShowManageSubscription(true);
+        console.error("international-waitlist error:", data);
+        setWaitlistError("Something went wrong. Try again in a moment.");
         return;
       }
-      window.location.href = data.url;
+      setWaitlistSubmitted(true);
     } catch (err) {
-      console.error("create-portal-session failed:", err);
-      setShowManageSubscription(true);
+      console.error("international-waitlist failed:", err);
+      setWaitlistError("Something went wrong. Try again in a moment.");
+    } finally {
+      setWaitlistLoading(false);
+    }
+  };
+
+  // Razorpay has no hosted self-service billing portal the way Stripe
+  // does — this just opens our own modal, which now contains the real
+  // cancel-subscription action instead of redirecting anywhere.
+  const handleManageSubscription = () => setShowManageSubscription(true);
+
+  const handleCancelSubscription = async () => {
+    setCancelSubLoading(true);
+    setCancelSubError(null);
+    try {
+      const res = await fetch("/api/cancel-razorpay-subscription", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("cancel-razorpay-subscription error:", data);
+        setCancelSubError("Something went wrong cancelling your subscription. Try again, or contact support@spotrise.app.");
+        return;
+      }
+      setCancelSubSuccess(true);
+    } catch (err) {
+      console.error("cancel-razorpay-subscription failed:", err);
+      setCancelSubError("Something went wrong cancelling your subscription. Try again, or contact support@spotrise.app.");
+    } finally {
+      setCancelSubLoading(false);
     }
   };
 
@@ -1099,7 +1151,7 @@ export default function SpotRisePage() {
               <div className="p-6 rounded-2xl bg-white border-2 border-orange shadow-md relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white text-xs font-medium">Most Popular</div>
                 <div className="text-sm text-orange font-medium mb-2">Pro</div>
-                <div className="text-3xl font-bold mb-1">$9<span className="text-lg text-gray-warm font-normal">/mo</span></div>
+                <div className="text-3xl font-bold mb-1">{isIndia ? "₹699" : "$9"}<span className="text-lg text-gray-warm font-normal">/mo</span></div>
                 <div className="text-sm text-gray-warm mb-6">Billed monthly</div>
                 <ul className="space-y-3 mb-6">
                   {["Unlimited AI audits", "Competitor gap analysis (3 max)", "All Pro Tools unlocked", "2 business profiles", "Weekly pulse reports", "Priority support"].map((item, i) => (
@@ -1151,9 +1203,12 @@ export default function SpotRisePage() {
 
         {/* Modals */}
         <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
-        <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
+        <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError}
+          isIndia={isIndia} waitlistEmail={waitlistEmail} setWaitlistEmail={setWaitlistEmail} onJoinWaitlist={handleJoinWaitlist}
+          waitlistLoading={waitlistLoading} waitlistError={waitlistError} waitlistSubmitted={waitlistSubmitted} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
-        <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
+        <ManageSubscriptionModal open={showManageSubscription} onClose={() => { setShowManageSubscription(false); setCancelSubSuccess(false); setCancelSubError(null); }}
+        onCancel={handleCancelSubscription} cancelling={cancelSubLoading} cancelError={cancelSubError} cancelSuccess={cancelSubSuccess} />
         <DeleteAccountModal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} deleting={deletingAccount} error={deleteAccountError} />
       </div>
     );
@@ -1239,7 +1294,7 @@ export default function SpotRisePage() {
 
         {/* ========== OVERVIEW TAB ========== */}
         {activeTab === "overview" && searchStatus === "locked" && (
-          <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />
+          <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} isIndia={isIndia} />
         )}
         {activeTab === "overview" && searchStatus !== "locked" && (
           <div className="space-y-6">
@@ -1430,7 +1485,7 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== REVIEWS TAB ========== */}
-        {activeTab === "reviews" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "reviews" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} isIndia={isIndia} />}
         {activeTab === "reviews" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1531,7 +1586,7 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== POSTS TAB ========== */}
-        {activeTab === "posts" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "posts" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} isIndia={isIndia} />}
         {activeTab === "posts" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1567,7 +1622,7 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== COMPETITORS TAB ========== */}
-        {activeTab === "competitors" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "competitors" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} isIndia={isIndia} />}
         {activeTab === "competitors" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1594,7 +1649,7 @@ export default function SpotRisePage() {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
+                <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — {isIndia ? "₹699" : "$9"}/mo</button>
               </div>
             ) : competitors.length === 0 ? (
               <div className="rounded-2xl bg-white border border-border-warm shadow-sm p-12 text-center">
@@ -1678,7 +1733,7 @@ export default function SpotRisePage() {
         )}
 
         {/* ========== TOOLS TAB ========== */}
-        {activeTab === "tools" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} />}
+        {activeTab === "tools" && searchStatus === "locked" && <LockedTabMessage onUpgrade={() => setShowUpgrade(true)} isIndia={isIndia} />}
         {activeTab === "tools" && searchStatus !== "locked" && (
           <div className="space-y-6">
             <div>
@@ -1722,7 +1777,7 @@ export default function SpotRisePage() {
             {userState !== "pro" && (
               <div className="rounded-2xl bg-gradient-to-br from-orange-light to-orange-light border border-orange/20 p-6 text-center">
                 <h3 className="font-semibold mb-2">Unlock All Pro Tools</h3>
-                <p className="text-sm text-gray-warm mb-4">Get the full suite of AI-powered tools for just $9/month.</p>
+                <p className="text-sm text-gray-warm mb-4">Get the full suite of AI-powered tools for just {isIndia ? "₹699" : "$9"}/month.</p>
                 <button onClick={() => setShowUpgrade(true)} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro</button>
               </div>
             )}
@@ -1738,7 +1793,9 @@ export default function SpotRisePage() {
 
       {/* ========== MODALS ========== */}
       <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError}
+          isIndia={isIndia} waitlistEmail={waitlistEmail} setWaitlistEmail={setWaitlistEmail} onJoinWaitlist={handleJoinWaitlist}
+          waitlistLoading={waitlistLoading} waitlistError={waitlistError} waitlistSubmitted={waitlistSubmitted} />
       <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
       <FinalChangeModal open={showFinalChange} onClose={() => setShowFinalChange(false)} onConfirm={confirmChangeBusiness} />
@@ -1746,7 +1803,7 @@ export default function SpotRisePage() {
       <AddCompetitorModal open={showAddCompetitor} onClose={() => setShowAddCompetitor(false)} onSearch={searchCompetitor} onConfirm={confirmAddCompetitor}
         compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc}
         status={compSearchStatus} matches={compMatches} error={compError} />
-      <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
+      <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} isIndia={isIndia} onShowFullUpgrade={() => { setShowCompetitorUpgrade(false); setShowUpgrade(true); }} />
       <RemoveCompetitorModal
         open={!!confirmRemoveCompetitor}
         name={confirmRemoveCompetitor?.name ?? ""}
@@ -1754,7 +1811,8 @@ export default function SpotRisePage() {
         onClose={() => setConfirmRemoveCompetitor(null)}
         onConfirm={doRemoveCompetitor}
       />
-      <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
+      <ManageSubscriptionModal open={showManageSubscription} onClose={() => { setShowManageSubscription(false); setCancelSubSuccess(false); setCancelSubError(null); }}
+        onCancel={handleCancelSubscription} cancelling={cancelSubLoading} cancelError={cancelSubError} cancelSuccess={cancelSubSuccess} />
       <DeleteAccountModal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} deleting={deletingAccount} error={deleteAccountError} />
     </div>
   );
@@ -2249,7 +2307,7 @@ function ToolDrawer({ toolId, onClose, businessId, businessName }: { toolId: str
   );
 }
 
-function LockedTabMessage({ onUpgrade }: { onUpgrade: () => void }) {
+function LockedTabMessage({ onUpgrade, isIndia }: { onUpgrade: () => void; isIndia: boolean }) {
   return (
     <div className="rounded-2xl bg-white border border-orange/30 shadow-sm p-12 text-center">
       <div className="w-16 h-16 rounded-2xl bg-orange-light flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-orange" /></div>
@@ -2257,7 +2315,7 @@ function LockedTabMessage({ onUpgrade }: { onUpgrade: () => void }) {
       <p className="text-sm text-gray-warm max-w-md mx-auto mb-6">
         Upgrade to Pro to link a business permanently and unlock full access to reviews, posts, and competitor tracking.
       </p>
-      <button onClick={onUpgrade} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
+      <button onClick={onUpgrade} className="px-6 py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors">Upgrade to Pro — {isIndia ? "₹699" : "$9"}/mo</button>
     </div>
   );
 }
@@ -2427,12 +2485,16 @@ function LoginModal({ open, onClose, pendingBusinessName, pendingLocation }: { o
   );
 }
 
-function UpgradeModal({ open, onClose, onUpgrade, loading, error }: { open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null }) {
+function UpgradeModal({ open, onClose, onUpgrade, loading, error, isIndia, waitlistEmail, setWaitlistEmail, onJoinWaitlist, waitlistLoading, waitlistError, waitlistSubmitted }: {
+  open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null;
+  isIndia: boolean; waitlistEmail: string; setWaitlistEmail: (v: string) => void; onJoinWaitlist: (email: string) => void;
+  waitlistLoading: boolean; waitlistError: string | null; waitlistSubmitted: boolean;
+}) {
   return (
     <Modal open={open} onClose={onClose} title="Upgrade to Pro">
       <div className="space-y-4">
         <div className="p-4 rounded-xl bg-orange-light border border-orange/30">
-          <div className="text-2xl font-bold">$9<span className="text-sm text-gray-warm font-normal">/month</span></div>
+          <div className="text-2xl font-bold">{isIndia ? "₹699" : "$9"}<span className="text-sm text-gray-warm font-normal">/month</span></div>
           <p className="text-sm text-gray-warm mt-1">Billed monthly. Cancel anytime.</p>
         </div>
         <ul className="space-y-2">
@@ -2440,10 +2502,32 @@ function UpgradeModal({ open, onClose, onUpgrade, loading, error }: { open: bool
             <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
           ))}
         </ul>
-        {error && <p className="text-sm text-red-500">{error}</p>}
-        <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? "Redirecting to checkout..." : "Upgrade Now — $9/mo"}
-        </button>
+        {isIndia ? (
+          <>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? "Redirecting to checkout..." : "Upgrade Now — ₹699/mo"}
+            </button>
+          </>
+        ) : waitlistSubmitted ? (
+          <div className="text-center py-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
+            <p className="text-sm text-charcoal">You're on the list — we'll email you the moment international billing is live.</p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs text-gray-warm mb-2">International billing is launching soon. Leave your email and we'll let you know the moment it's live.</p>
+            <div className="flex gap-2">
+              <input type="email" value={waitlistEmail} onChange={(e) => setWaitlistEmail(e.target.value)} placeholder="you@example.com"
+                className="flex-1 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-orange/50" />
+              <button onClick={() => onJoinWaitlist(waitlistEmail)} disabled={waitlistLoading || !waitlistEmail.trim()}
+                className="px-4 py-2.5 rounded-lg bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {waitlistLoading ? "..." : "Notify me"}
+              </button>
+            </div>
+            {waitlistError && <p className="text-sm text-red-500 mt-2">{waitlistError}</p>}
+          </div>
+        )}
         <button onClick={onClose} className="w-full py-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
@@ -2585,14 +2669,52 @@ function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubsc
   );
 }
 
-function ManageSubscriptionModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ManageSubscriptionModal({ open, onClose, onCancel, cancelling, cancelError, cancelSuccess }: {
+  open: boolean; onClose: () => void; onCancel: () => void; cancelling: boolean; cancelError: string | null; cancelSuccess: boolean;
+}) {
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+
+  useEffect(() => {
+    if (!open) setConfirmingCancel(false);
+  }, [open]);
+
+  if (cancelSuccess) {
+    return (
+      <Modal open={open} onClose={onClose} title="Subscription Cancelled">
+        <div className="text-center py-4">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"><CheckCircle2 className="w-7 h-7 text-emerald-600" /></div>
+          <p className="text-gray-warm mb-1">Your subscription is set to cancel.</p>
+          <p className="text-sm text-gray-warm mb-5">You'll keep full Pro access until the end of your current billing period — no further charges after that.</p>
+          <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Close</button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
-    <Modal open={open} onClose={onClose} title="Couldn't Open Billing">
-      <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-500" /></div>
-        <p className="text-gray-warm mb-1">Something went wrong opening your billing portal.</p>
-        <p className="text-sm text-gray-warm mb-5">Try again in a moment, or contact support@spotrise.app if this keeps happening.</p>
-        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Close</button>
+    <Modal open={open} onClose={onClose} title="Manage Subscription">
+      <div className="py-2">
+        <div className="p-4 rounded-xl bg-orange-light border border-orange/30 mb-5">
+          <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-orange" /><span className="text-sm font-medium text-charcoal">You're on Pro — ₹699/month</span></div>
+        </div>
+        {!confirmingCancel ? (
+          <button onClick={() => setConfirmingCancel(true)} className="w-full py-3 rounded-xl bg-white text-red-500 font-medium text-sm hover:bg-cream transition-colors border border-border-warm">
+            Cancel Subscription
+          </button>
+        ) : (
+          <div>
+            <p className="text-sm text-gray-warm mb-1">Cancel your Pro subscription?</p>
+            <p className="text-xs text-gray-warm mb-4">You'll keep access until the end of your current billing period, then your account moves to Free.</p>
+            {cancelError && <p className="text-sm text-red-500 mb-3">{cancelError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmingCancel(false)} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Never mind</button>
+              <button onClick={onCancel} disabled={cancelling} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {cancelling ? "Cancelling..." : "Yes, Cancel"}
+              </button>
+            </div>
+          </div>
+        )}
+        {!confirmingCancel && <button onClick={onClose} className="w-full py-2 mt-3 text-sm text-gray-warm hover:text-gray-warm transition-colors">Close</button>}
       </div>
     </Modal>
   );
@@ -2713,17 +2835,27 @@ function AddCompetitorModal({ open, onClose, onSearch, onConfirm, compSearchName
   );
 }
 
-function CompetitorUpgradeModal({ open, onClose, onUpgrade, loading, error }: { open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null }) {
+function CompetitorUpgradeModal({ open, onClose, onUpgrade, loading, error, isIndia, onShowFullUpgrade }: {
+  open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null; isIndia: boolean; onShowFullUpgrade: () => void;
+}) {
   return (
     <Modal open={open} onClose={onClose} title="Competitor Analysis is Pro Only">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-600" /></div>
         <p className="text-gray-warm mb-1">Track up to 2 competitors with gap analysis.</p>
         <p className="text-sm text-gray-warm mb-5">See exactly where you are losing customers and what to fix first.</p>
-        {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
-        <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? "Redirecting to checkout..." : "Upgrade to Pro — $9/mo"}
-        </button>
+        {isIndia ? (
+          <>
+            {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
+            <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? "Redirecting to checkout..." : "Upgrade to Pro — ₹699/mo"}
+            </button>
+          </>
+        ) : (
+          <button onClick={onShowFullUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">
+            Join the international waitlist
+          </button>
+        )}
         <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
