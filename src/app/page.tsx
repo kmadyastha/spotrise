@@ -153,6 +153,9 @@ export default function SpotRisePage() {
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [showCompetitorUpgrade, setShowCompetitorUpgrade] = useState(false);
   const [showManageSubscription, setShowManageSubscription] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [confirmingUpgrade, setConfirmingUpgrade] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
@@ -393,6 +396,34 @@ export default function SpotRisePage() {
     }
   }, []);
 
+  // After a successful Stripe Checkout, Stripe redirects back here with
+  // ?checkout=success — but the webhook that actually flips the plan to
+  // "pro" can take a moment to arrive. Poll briefly rather than showing
+  // stale "Free" state right after payment.
+  const pollForProPlan = useCallback(async (attemptsLeft: number) => {
+    try {
+      const res = await fetch("/api/my-business");
+      const data = await res.json();
+      if (data.plan === "pro" || attemptsLeft <= 0) {
+        await loadMySession();
+        setConfirmingUpgrade(false);
+        return;
+      }
+    } catch (err) {
+      console.error("pollForProPlan failed:", err);
+    }
+    setTimeout(() => pollForProPlan(attemptsLeft - 1), 1500);
+  }, [loadMySession]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      window.history.replaceState({}, "", window.location.pathname);
+      setConfirmingUpgrade(true);
+      pollForProPlan(6);
+    }
+  }, [pollForProPlan]);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
@@ -480,7 +511,44 @@ export default function SpotRisePage() {
     }
   };
 
-  const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
+  const handleUpgrade = async () => {
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/create-checkout-session", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("create-checkout-session error:", data);
+        setCheckoutError(
+          data.error === "already_pro" ? "You're already on Pro." :
+          "Something went wrong starting checkout. Try again in a moment."
+        );
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("create-checkout-session failed:", err);
+      setCheckoutError("Something went wrong starting checkout. Try again in a moment.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      const res = await fetch("/api/create-portal-session", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("create-portal-session error:", data);
+        setShowManageSubscription(true);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("create-portal-session failed:", err);
+      setShowManageSubscription(true);
+    }
+  };
 
   // Shows the marketing site (reusing the same landing-page content
   // anonymous visitors see) on top of an active session, then scrolls to
@@ -808,6 +876,11 @@ export default function SpotRisePage() {
   if (!hasSearched || showMarketingSite) {
     return (
       <div className="min-h-screen bg-cream text-charcoal">
+        {confirmingUpgrade && (
+          <div className="fixed top-0 inset-x-0 z-[100] bg-orange text-white text-sm text-center py-2 flex items-center justify-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />Confirming your upgrade...
+          </div>
+        )}
         {/* Navbar */}
         <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
@@ -849,7 +922,7 @@ export default function SpotRisePage() {
                     userState={userState}
                     onSignOut={handleSignOut}
                     onUpgrade={() => setShowUpgrade(true)}
-                    onManageSubscription={() => setShowManageSubscription(true)}
+                    onManageSubscription={handleManageSubscription}
                     onDeleteAccount={() => setShowDeleteAccount(true)}
                   />
                 </div>
@@ -1078,7 +1151,7 @@ export default function SpotRisePage() {
 
         {/* Modals */}
         <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
-        <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
+        <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
         <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
         <DeleteAccountModal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} deleting={deletingAccount} error={deleteAccountError} />
@@ -1091,6 +1164,11 @@ export default function SpotRisePage() {
      ================================================================ */
   return (
     <div className="min-h-screen bg-cream text-charcoal">
+      {confirmingUpgrade && (
+        <div className="fixed top-0 inset-x-0 z-[100] bg-orange text-white text-sm text-center py-2 flex items-center justify-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />Confirming your upgrade...
+        </div>
+      )}
       {/* Navbar */}
       <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
@@ -1133,7 +1211,7 @@ export default function SpotRisePage() {
                   userState={userState}
                   onSignOut={handleSignOut}
                   onUpgrade={() => setShowUpgrade(true)}
-                  onManageSubscription={() => setShowManageSubscription(true)}
+                  onManageSubscription={handleManageSubscription}
                   onDeleteAccount={() => setShowDeleteAccount(true)}
                 />
               </div>
@@ -1660,7 +1738,7 @@ export default function SpotRisePage() {
 
       {/* ========== MODALS ========== */}
       <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
       <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
       <BusinessLimitModal open={showBusinessLimit} onClose={() => setShowBusinessLimit(false)} />
       <FinalChangeModal open={showFinalChange} onClose={() => setShowFinalChange(false)} onConfirm={confirmChangeBusiness} />
@@ -1668,7 +1746,7 @@ export default function SpotRisePage() {
       <AddCompetitorModal open={showAddCompetitor} onClose={() => setShowAddCompetitor(false)} onSearch={searchCompetitor} onConfirm={confirmAddCompetitor}
         compSearchName={compSearchName} setCompSearchName={setCompSearchName} compSearchLoc={compSearchLoc} setCompSearchLoc={setCompSearchLoc}
         status={compSearchStatus} matches={compMatches} error={compError} />
-      <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} />
+      <CompetitorUpgradeModal open={showCompetitorUpgrade} onClose={() => setShowCompetitorUpgrade(false)} onUpgrade={handleUpgrade} loading={checkoutLoading} error={checkoutError} />
       <RemoveCompetitorModal
         open={!!confirmRemoveCompetitor}
         name={confirmRemoveCompetitor?.name ?? ""}
@@ -2349,7 +2427,7 @@ function LoginModal({ open, onClose, pendingBusinessName, pendingLocation }: { o
   );
 }
 
-function UpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: () => void; onUpgrade: () => void }) {
+function UpgradeModal({ open, onClose, onUpgrade, loading, error }: { open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null }) {
   return (
     <Modal open={open} onClose={onClose} title="Upgrade to Pro">
       <div className="space-y-4">
@@ -2358,11 +2436,14 @@ function UpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: ()
           <p className="text-sm text-gray-warm mt-1">Billed monthly. Cancel anytime.</p>
         </div>
         <ul className="space-y-2">
-          {["Unlimited AI audits", "Competitor gap analysis (3 competitors)", "All 6 Pro Tools unlocked", "2 business profiles", "Weekly pulse email reports", "Priority email support"].map((item, i) => (
+          {["Unlimited AI audits", "Competitor gap analysis (2 competitors)", "All 6 Pro Tools unlocked", "1 linked business", "Weekly pulse email reports", "Priority email support"].map((item, i) => (
             <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
           ))}
         </ul>
-        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Upgrade Now — $9/mo</button>
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          {loading ? "Redirecting to checkout..." : "Upgrade Now — $9/mo"}
+        </button>
         <button onClick={onClose} className="w-full py-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
@@ -2506,12 +2587,12 @@ function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubsc
 
 function ManageSubscriptionModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Modal open={open} onClose={onClose} title="Manage Subscription">
+    <Modal open={open} onClose={onClose} title="Couldn't Open Billing">
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-orange-light flex items-center justify-center mx-auto mb-4"><Sparkles className="w-7 h-7 text-orange" /></div>
-        <p className="text-gray-warm mb-1">Subscription management is coming soon.</p>
-        <p className="text-sm text-gray-warm mb-5">Once billing is wired up, you'll be able to update your plan, payment method, and billing details right here.</p>
-        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Got it</button>
+        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-500" /></div>
+        <p className="text-gray-warm mb-1">Something went wrong opening your billing portal.</p>
+        <p className="text-sm text-gray-warm mb-5">Try again in a moment, or contact support@spotrise.app if this keeps happening.</p>
+        <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Close</button>
       </div>
     </Modal>
   );
@@ -2632,14 +2713,17 @@ function AddCompetitorModal({ open, onClose, onSearch, onConfirm, compSearchName
   );
 }
 
-function CompetitorUpgradeModal({ open, onClose, onUpgrade }: { open: boolean; onClose: () => void; onUpgrade: () => void }) {
+function CompetitorUpgradeModal({ open, onClose, onUpgrade, loading, error }: { open: boolean; onClose: () => void; onUpgrade: () => void; loading: boolean; error: string | null }) {
   return (
     <Modal open={open} onClose={onClose} title="Competitor Analysis is Pro Only">
       <div className="text-center py-4">
         <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><Target className="w-7 h-7 text-amber-600" /></div>
-        <p className="text-gray-warm mb-1">Track up to 3 competitors with gap analysis.</p>
+        <p className="text-gray-warm mb-1">Track up to 2 competitors with gap analysis.</p>
         <p className="text-sm text-gray-warm mb-5">See exactly where you are losing customers and what to fix first.</p>
-        <button onClick={onUpgrade} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors">Upgrade to Pro — $9/mo</button>
+        {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
+        <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          {loading ? "Redirecting to checkout..." : "Upgrade to Pro — $9/mo"}
+        </button>
         <button onClick={onClose} className="w-full py-2 mt-2 text-sm text-gray-warm hover:text-gray-warm transition-colors">Maybe later</button>
       </div>
     </Modal>
