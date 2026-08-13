@@ -65,7 +65,7 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="Data retention">
-            <p>We retain your account and business data for as long as your account is active. You can permanently delete your account at any time from your account menu — this immediately and permanently removes your linked business, reviews, AI-generated content, competitor tracking, and usage history from our systems. Some records may be kept longer where we're required to by law or for legitimate business record-keeping (for example, billing records for a Pro subscription).</p>
+            <p>We retain your account and business data for as long as your account is active. Pro accounts can permanently delete their account at any time from the account menu — this immediately and permanently removes your linked business, reviews, AI-generated content, competitor tracking, and usage history from our systems. Free accounts can request deletion by emailing us; we'll process it manually rather than instantly, to prevent automated abuse of free-tier limits. Some records may be kept longer where we're required to by law or for legitimate business record-keeping (for example, billing records for a Pro subscription).</p>
           </Section>
 
           <Section title="Your rights">

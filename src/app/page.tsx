@@ -453,7 +453,10 @@ export default function SpotRisePage() {
       const data = await res.json();
       if (!res.ok) {
         console.error("delete-account error:", data);
-        setDeleteAccountError("Something went wrong deleting your account. Try again, or contact support if this keeps happening.");
+        setDeleteAccountError(
+          data.error === "pro_only" ? "Account deletion is available for Pro accounts. Free accounts can request deletion by emailing support@spotrise.app." :
+          "Something went wrong deleting your account. Try again, or contact support if this keeps happening."
+        );
         return;
       }
       // The account is gone server-side — clear the local session and
@@ -1090,8 +1093,8 @@ export default function SpotRisePage() {
     <div className="min-h-screen bg-cream text-charcoal">
       {/* Navbar */}
       <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center cursor-pointer" onClick={() => liveSnapshot ? setActiveTab("overview") : setHasSearched(false)}>
               <Zap className="w-5 h-5 text-white" />
             </div>
@@ -1106,7 +1109,15 @@ export default function SpotRisePage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden xl:flex items-center gap-6 text-sm text-gray-warm">
+            <button onClick={() => goToMarketingSection("features")} className="hover:text-charcoal transition-colors">Features</button>
+            <button onClick={() => goToMarketingSection("how-it-works")} className="hover:text-charcoal transition-colors">How It Works</button>
+            <button onClick={() => goToMarketingSection("pricing")} className="hover:text-charcoal transition-colors">Pricing</button>
+            <button onClick={() => goToMarketingSection("faq")} className="hover:text-charcoal transition-colors">FAQ</button>
+            <Link href="/blog" className="hover:text-charcoal transition-colors">Blog</Link>
+            <Link href="/about" className="hover:text-charcoal transition-colors">About</Link>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
             {userState === "anonymous" ? (
               <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white hover:bg-cream-dark transition-colors">Sign In</button>
             ) : (
@@ -2469,13 +2480,23 @@ function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubsc
               <X className="w-4 h-4" />
               Log out
             </button>
-            <button
-              onClick={() => { setOpen(false); onDeleteAccount(); }}
-              className="w-full text-left px-4 py-2.5 text-xs text-gray-warm/70 hover:bg-cream hover:text-red-500 transition-colors flex items-center gap-2 border-t border-border-warm"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete account
-            </button>
+            {userState === "pro" ? (
+              <button
+                onClick={() => { setOpen(false); onDeleteAccount(); }}
+                className="w-full text-left px-4 py-2.5 text-xs text-gray-warm/70 hover:bg-cream hover:text-red-500 transition-colors flex items-center gap-2 border-t border-border-warm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete account
+              </button>
+            ) : (
+              <a
+                href="mailto:support@spotrise.app?subject=Delete%20my%20account"
+                className="w-full text-left px-4 py-2.5 text-xs text-gray-warm/70 hover:bg-cream hover:text-charcoal transition-colors flex items-center gap-2 border-t border-border-warm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Request account deletion
+              </a>
+            )}
           </div>
         </>
       )}

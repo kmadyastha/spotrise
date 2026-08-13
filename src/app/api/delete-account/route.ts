@@ -8,11 +8,22 @@ export async function DELETE() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-    // TODO once Stripe billing is live: if this user has an active Pro
-    // subscription, cancel it with Stripe FIRST, before deleting any
-    // data below — otherwise they'd keep being billed for an account
-    // that no longer exists. Not needed yet since "Upgrade to Pro" is
-    // still a client-side-only toggle, not a real subscription.
+    // Self-service deletion is Pro-only, on purpose: a Free account can
+    // delete+recreate to reset its 2-lifetime-audit limit indefinitely,
+    // since a fresh signup always starts with a clean slate. Gating this
+    // to Pro removes the incentive — there's nothing to "reset" that's
+    // worth losing a paid plan over. Free users can still request
+    // deletion; it just goes through support instead of being instant.
+    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+    if (profile?.plan !== "pro") {
+      return NextResponse.json({ error: "pro_only" }, { status: 403 });
+    }
+
+    // TODO once Stripe billing is live: cancel this user's active Pro
+    // subscription with Stripe FIRST, before deleting any data below —
+    // otherwise they'd keep being billed for an account that no longer
+    // exists. Not needed yet since "Upgrade to Pro" is still a
+    // client-side-only toggle, not a real subscription.
 
     const admin = createAdminClient();
 
