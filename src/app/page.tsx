@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
   Search, Star, TrendingUp, TrendingDown, Minus, Lock, Zap, ChevronRight, ChevronDown, ChevronUp, X, User, Mail,
@@ -152,6 +153,11 @@ export default function SpotRisePage() {
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [showCompetitorUpgrade, setShowCompetitorUpgrade] = useState(false);
   const [showManageSubscription, setShowManageSubscription] = useState(false);
+  // Lets a logged-in Pro/Free user with a linked business (who otherwise
+  // never sees anything but the dashboard) view the full marketing site
+  // — Demo, Features, How It Works, Pricing, FAQ — without losing their
+  // session or business data. Reached via the dashboard footer.
+  const [showMarketingSite, setShowMarketingSite] = useState(false);
 
   /* Competitors */
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -437,6 +443,15 @@ export default function SpotRisePage() {
   };
 
   const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
+
+  // Shows the marketing site (reusing the same landing-page content
+  // anonymous visitors see) on top of an active session, then scrolls to
+  // the requested section once it's rendered. Pure client-state — no
+  // navigation, so the dashboard and business data stay intact underneath.
+  const goToMarketingSection = (anchorId: string) => {
+    setShowMarketingSite(true);
+    setTimeout(() => document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" }), 60);
+  };
 
   const handleChangeBusiness = (slotId: number) => {
     const slot = businessSlots.find((s) => s.id === slotId);
@@ -752,7 +767,7 @@ export default function SpotRisePage() {
   /* ================================================================
      LANDING PAGE
      ================================================================ */
-  if (!hasSearched) {
+  if (!hasSearched || showMarketingSite) {
     return (
       <div className="min-h-screen bg-cream text-charcoal">
         {/* Navbar */}
@@ -772,6 +787,11 @@ export default function SpotRisePage() {
                 </>
               ) : (
                 <div className="flex items-center gap-3">
+                  {showMarketingSite && liveSnapshot && (
+                    <button onClick={() => setShowMarketingSite(false)} className="text-sm px-4 py-2 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors flex items-center gap-1.5">
+                      <ChevronRight className="w-3.5 h-3.5 rotate-180" />Back to Dashboard
+                    </button>
+                  )}
                   <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
                     {userState === "pro" ? "Pro Plan" : "Free Plan"}
                   </span>
@@ -818,9 +838,9 @@ export default function SpotRisePage() {
                     onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
                     className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
                 </div>
-                <button onClick={() => userState === "anonymous" ? setShowLogin(true) : handleSearch()} disabled={userState !== "anonymous" && (!businessName.trim() || !location.trim())}
+                <button onClick={() => liveSnapshot ? setShowMarketingSite(false) : userState === "anonymous" ? setShowLogin(true) : handleSearch()} disabled={!liveSnapshot && userState !== "anonymous" && (!businessName.trim() || !location.trim())}
                   className="px-6 py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                  Audit Now <ArrowRight className="w-4 h-4" />
+                  {liveSnapshot ? "Back to Dashboard" : "Audit Now"} <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -892,7 +912,7 @@ export default function SpotRisePage() {
         </section>
 
         {/* How it works */}
-        <section className="py-20 border-t border-border-warm px-4">
+        <section id="how-it-works" className="py-20 border-t border-border-warm px-4">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="font-serif text-3xl font-bold">How It Works</h2>
@@ -938,7 +958,7 @@ export default function SpotRisePage() {
                     <li key={i} className="flex items-center gap-2 text-sm text-gray-warm"><CheckCircle2 className="w-4 h-4 text-orange shrink-0" />{item}</li>
                   ))}
                 </ul>
-                <button onClick={() => userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="w-full py-2.5 rounded-xl bg-cream border border-border-warm hover:bg-cream-dark transition-colors text-sm font-medium">{userState === "anonymous" ? "Get Started Free" : "Run an Audit"}</button>
+                <button onClick={() => liveSnapshot ? setShowMarketingSite(false) : userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="w-full py-2.5 rounded-xl bg-cream border border-border-warm hover:bg-cream-dark transition-colors text-sm font-medium">{liveSnapshot ? "Back to Dashboard" : userState === "anonymous" ? "Get Started Free" : "Run an Audit"}</button>
               </div>
               <div className="p-6 rounded-2xl bg-white border-2 border-orange shadow-md relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white text-xs font-medium">Most Popular</div>
@@ -957,7 +977,7 @@ export default function SpotRisePage() {
         </section>
 
         {/* FAQ */}
-        <section className="py-20 border-t border-border-warm px-4">
+        <section id="faq" className="py-20 border-t border-border-warm px-4">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="font-serif text-3xl font-bold">Your questions, answered.</h2>
@@ -985,45 +1005,13 @@ export default function SpotRisePage() {
               Are you ready to dominate <span className="italic text-orange">local search</span> and generate more leads for your business?
             </h2>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button onClick={() => userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors">{userState === "anonymous" ? "Get started" : "Run an audit"}</button>
+              <button onClick={() => liveSnapshot ? setShowMarketingSite(false) : userState === "anonymous" ? setShowLogin(true) : document.getElementById("hero-search")?.scrollIntoView({ behavior: "smooth" })} className="bg-orange text-white px-8 py-3.5 rounded-full font-medium hover:bg-orange-hover transition-colors">{liveSnapshot ? "Back to Dashboard" : userState === "anonymous" ? "Get started" : "Run an audit"}</button>
               <button onClick={() => document.getElementById("video-demo")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-charcoal px-8 py-3.5 rounded-full font-medium hover:bg-cream-dark transition-colors">View Demo</button>
             </div>
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-border-warm px-4">
-          <div className="max-w-6xl mx-auto py-12">
-            <div className="grid md:grid-cols-4 gap-8 mb-8">
-              <div className="md:col-span-1">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-orange flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
-                  <span className="text-lg font-serif font-bold text-charcoal">SpotRise</span>
-                </div>
-                <p className="text-sm text-gray-warm">Built for owners who want to take control of their Google presence.</p>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Product</h4>
-                <ul className="space-y-2 text-sm text-gray-warm">
-                  <li><a href="#features" className="hover:text-charcoal">Features</a></li>
-                  <li><a href="#pricing" className="hover:text-charcoal">Pricing</a></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Company</h4>
-                <ul className="space-y-2 text-sm text-gray-warm"><li><span className="hover:text-charcoal cursor-pointer">Blog</span></li></ul>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Legal</h4>
-                <ul className="space-y-2 text-sm text-gray-warm">
-                  <li><span className="hover:text-charcoal cursor-pointer">Privacy</span></li>
-                  <li><span className="hover:text-charcoal cursor-pointer">Terms</span></li>
-                </ul>
-              </div>
-            </div>
-            <div className="border-t border-border-warm pt-6 text-sm text-gray-warm">© 2026 SpotRise, Inc.</div>
-          </div>
-        </footer>
+        <SiteFooter onGoToSection={liveSnapshot ? goToMarketingSection : undefined} />
 
         {/* Modals */}
         <LoginModal open={showLogin} onClose={() => setShowLogin(false)} pendingBusinessName={businessName} pendingLocation={location} />
@@ -1591,6 +1579,8 @@ export default function SpotRisePage() {
         )}
       </div>
 
+      <SiteFooter onGoToSection={goToMarketingSection} />
+
       {openTool && liveSnapshot?.businessId && (
         <ToolDrawer toolId={openTool} onClose={() => setOpenTool(null)} businessId={liveSnapshot.businessId} businessName={liveSnapshot.name} />
       )}
@@ -2150,6 +2140,67 @@ function HowItWorksMarquee() {
         ))}
       </div>
     </div>
+  );
+}
+
+/* ================================================================
+   SITE FOOTER — shared between the public landing page and the
+   dashboard. On the landing page, Product links are plain anchors
+   (#features etc). From the dashboard, onGoToSection is passed so the
+   same links open the marketing view and scroll to that section,
+   without losing the active session or business data underneath.
+   ================================================================ */
+function SiteFooter({ onGoToSection }: { onGoToSection?: (anchorId: string) => void }) {
+  const productLinks = [
+    { label: "Demo", anchor: "video-demo" },
+    { label: "Features", anchor: "features" },
+    { label: "How It Works", anchor: "how-it-works" },
+    { label: "Pricing", anchor: "pricing" },
+    { label: "FAQ", anchor: "faq" },
+  ];
+  return (
+    <footer className="border-t border-border-warm px-4">
+      <div className="max-w-6xl mx-auto py-12">
+        <div className="grid md:grid-cols-4 gap-8 mb-8">
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-full bg-orange flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-white" /></div>
+              <span className="text-lg font-serif font-bold text-charcoal">SpotRise</span>
+            </div>
+            <p className="text-sm text-gray-warm">Built for owners who want to take control of their Google presence.</p>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Product</h4>
+            <ul className="space-y-2 text-sm text-gray-warm">
+              {productLinks.map((link) => (
+                <li key={link.anchor}>
+                  {onGoToSection ? (
+                    <button onClick={() => onGoToSection(link.anchor)} className="hover:text-charcoal">{link.label}</button>
+                  ) : (
+                    <a href={`#${link.anchor}`} className="hover:text-charcoal">{link.label}</a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Company</h4>
+            <ul className="space-y-2 text-sm text-gray-warm">
+              <li><Link href="/about" className="hover:text-charcoal">About</Link></li>
+              <li><Link href="/blog" className="hover:text-charcoal">Blog</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold tracking-[0.15em] text-orange uppercase mb-4">Legal</h4>
+            <ul className="space-y-2 text-sm text-gray-warm">
+              <li><Link href="/privacy" className="hover:text-charcoal">Privacy</Link></li>
+              <li><Link href="/terms" className="hover:text-charcoal">Terms</Link></li>
+            </ul>
+          </div>
+        </div>
+        <div className="border-t border-border-warm pt-6 text-sm text-gray-warm">© 2026 SpotRise, Inc.</div>
+      </div>
+    </footer>
   );
 }
 
