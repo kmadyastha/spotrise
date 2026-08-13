@@ -5,14 +5,22 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-cream text-charcoal">
       <nav className="border-b border-border-warm px-4 sticky top-0 z-50 bg-cream/95 backdrop-blur-xl">
-        <div className="max-w-4xl mx-auto h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+        <div className="max-w-6xl mx-auto h-16 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-serif font-bold tracking-tight">SpotRise</span>
           </Link>
-          <Link href="/" className="text-sm text-gray-warm hover:text-charcoal transition-colors">← Back to SpotRise</Link>
+          <div className="hidden lg:flex items-center gap-7 text-sm text-gray-warm">
+            <Link href="/#features" className="hover:text-charcoal transition-colors">Features</Link>
+            <Link href="/#how-it-works" className="hover:text-charcoal transition-colors">How It Works</Link>
+            <Link href="/#pricing" className="hover:text-charcoal transition-colors">Pricing</Link>
+            <Link href="/#faq" className="hover:text-charcoal transition-colors">FAQ</Link>
+            <Link href="/blog" className="hover:text-charcoal transition-colors">Blog</Link>
+            <Link href="/about" className="hover:text-charcoal transition-colors">About</Link>
+          </div>
+          <Link href="/" className="text-sm text-gray-warm hover:text-charcoal transition-colors shrink-0">← Back to SpotRise</Link>
         </div>
       </nav>
 

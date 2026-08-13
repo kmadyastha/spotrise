@@ -153,6 +153,9 @@ export default function SpotRisePage() {
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [showCompetitorUpgrade, setShowCompetitorUpgrade] = useState(false);
   const [showManageSubscription, setShowManageSubscription] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   // Lets a logged-in Pro/Free user with a linked business (who otherwise
   // never sees anything but the dashboard) view the full marketing site
   // — Demo, Features, How It Works, Pricing, FAQ — without losing their
@@ -440,6 +443,38 @@ export default function SpotRisePage() {
     setLiveReviews([]);
     setLivePosts([]);
     setCompetitors([]);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      const res = await fetch("/api/delete-account", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("delete-account error:", data);
+        setDeleteAccountError("Something went wrong deleting your account. Try again, or contact support if this keeps happening.");
+        return;
+      }
+      // The account is gone server-side — clear the local session and
+      // all in-memory state the same way sign-out does.
+      await supabase.auth.signOut();
+      setShowDeleteAccount(false);
+      setUserState("anonymous");
+      setUserEmail(null);
+      setHasSearched(false);
+      setShowMarketingSite(false);
+      setLiveSnapshot(null);
+      setLiveActionItems([]);
+      setLiveReviews([]);
+      setLivePosts([]);
+      setCompetitors([]);
+    } catch (err) {
+      console.error("delete-account failed:", err);
+      setDeleteAccountError("Something went wrong deleting your account. Try again, or contact support if this keeps happening.");
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   const handleUpgrade = () => { setUserState("pro"); setShowUpgrade(false); setShowCompetitorUpgrade(false); };
@@ -772,14 +807,22 @@ export default function SpotRisePage() {
       <div className="min-h-screen bg-cream text-charcoal">
         {/* Navbar */}
         <nav className="border-b border-border-warm backdrop-blur-xl sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-orange flex items-center justify-center">
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-serif font-bold tracking-tight">SpotRise</span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-7 text-sm text-gray-warm">
+              <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-charcoal transition-colors">Features</button>
+              <button onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-charcoal transition-colors">How It Works</button>
+              <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-charcoal transition-colors">Pricing</button>
+              <button onClick={() => document.getElementById("faq")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-charcoal transition-colors">FAQ</button>
+              <Link href="/blog" className="hover:text-charcoal transition-colors">Blog</Link>
+              <Link href="/about" className="hover:text-charcoal transition-colors">About</Link>
+            </div>
+            <div className="flex items-center gap-4 shrink-0">
               {userState === "anonymous" ? (
                 <>
                   <button onClick={() => setShowLogin(true)} className="text-sm text-gray-warm hover:text-charcoal transition-colors">Sign In</button>
@@ -804,6 +847,7 @@ export default function SpotRisePage() {
                     onSignOut={handleSignOut}
                     onUpgrade={() => setShowUpgrade(true)}
                     onManageSubscription={() => setShowManageSubscription(true)}
+                    onDeleteAccount={() => setShowDeleteAccount(true)}
                   />
                 </div>
               )}
@@ -823,27 +867,43 @@ export default function SpotRisePage() {
               Get a complete AI audit of your Google Business Profile. Discover exactly what's hurting your visibility and what to fix first — in under 60 seconds.
             </p>
 
-            {/* Search Box */}
-            <div id="hero-search" className="mt-10 max-w-2xl mx-auto scroll-mt-24">
-              <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white border-2 border-border-warm shadow-sm">
-                <div className="flex-1 flex items-center gap-3 px-4 py-3">
-                  <Search className="w-5 h-5 text-gray-warm shrink-0" />
-                  <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
-                    className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+            {liveSnapshot ? (
+              /* Returning dashboard user browsing the marketing site —
+                 no search fields; nothing to search for, they already
+                 have a linked business. Just a clear way back. */
+              <div className="mt-10 max-w-md mx-auto">
+                <div className="p-6 rounded-2xl bg-white border-2 border-border-warm shadow-sm">
+                  <div className="w-11 h-11 rounded-xl bg-orange-light flex items-center justify-center mx-auto mb-3"><BarChart3 className="w-5 h-5 text-orange" /></div>
+                  <p className="text-sm text-charcoal font-medium mb-1">{liveSnapshot.name}</p>
+                  <p className="text-xs text-gray-warm mb-4">Your dashboard has the latest on your reviews, score, and what to fix next.</p>
+                  <button onClick={() => setShowMarketingSite(false)} className="w-full py-2.5 rounded-xl bg-orange text-white text-sm font-medium hover:bg-orange-hover transition-colors flex items-center justify-center gap-2">
+                    <ChevronRight className="w-4 h-4 rotate-180" />Back to Dashboard
+                  </button>
                 </div>
-                <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-border-warm">
-                  <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
-                  <input type="text" placeholder="City (e.g., Austin)" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
-                    className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
-                </div>
-                <button onClick={() => liveSnapshot ? setShowMarketingSite(false) : userState === "anonymous" ? setShowLogin(true) : handleSearch()} disabled={!liveSnapshot && userState !== "anonymous" && (!businessName.trim() || !location.trim())}
-                  className="px-6 py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                  {liveSnapshot ? "Back to Dashboard" : "Audit Now"} <ArrowRight className="w-4 h-4" />
-                </button>
               </div>
-            </div>
+            ) : (
+              /* Search Box */
+              <div id="hero-search" className="mt-10 max-w-2xl mx-auto scroll-mt-24">
+                <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-white border-2 border-border-warm shadow-sm">
+                  <div className="flex-1 flex items-center gap-3 px-4 py-3">
+                    <Search className="w-5 h-5 text-gray-warm shrink-0" />
+                    <input type="text" placeholder="Business name (e.g., Joe's Pizza)" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
+                      className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-3 px-4 py-3 border-t sm:border-t-0 sm:border-l border-border-warm">
+                    <MapPin className="w-5 h-5 text-gray-warm shrink-0" />
+                    <input type="text" placeholder="City (e.g., Austin)" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      onFocus={(e) => { if (userState === "anonymous") { e.target.blur(); setShowLogin(true); } }}
+                      className="w-full bg-transparent text-charcoal placeholder:text-gray-warm outline-none text-sm" />
+                  </div>
+                  <button onClick={() => userState === "anonymous" ? setShowLogin(true) : handleSearch()} disabled={userState !== "anonymous" && (!businessName.trim() || !location.trim())}
+                    className="px-6 py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    Audit Now <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-warm">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-orange" />No credit card required</span>
@@ -1018,6 +1078,7 @@ export default function SpotRisePage() {
         <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={handleUpgrade} />
         <AuditLimitModal open={showAuditLimit} onClose={() => setShowAuditLimit(false)} onLogin={() => { setShowAuditLimit(false); setShowLogin(true); }} />
         <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
+        <DeleteAccountModal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} deleting={deletingAccount} error={deleteAccountError} />
       </div>
     );
   }
@@ -1062,6 +1123,7 @@ export default function SpotRisePage() {
                   onSignOut={handleSignOut}
                   onUpgrade={() => setShowUpgrade(true)}
                   onManageSubscription={() => setShowManageSubscription(true)}
+                  onDeleteAccount={() => setShowDeleteAccount(true)}
                 />
               </div>
             )}
@@ -1604,6 +1666,7 @@ export default function SpotRisePage() {
         onConfirm={doRemoveCompetitor}
       />
       <ManageSubscriptionModal open={showManageSubscription} onClose={() => setShowManageSubscription(false)} />
+      <DeleteAccountModal open={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} deleting={deletingAccount} error={deleteAccountError} />
     </div>
   );
 }
@@ -2361,12 +2424,13 @@ function RemoveCompetitorModal({ open, name, message, onClose, onConfirm }: { op
    real dropdown: email + plan, a subscription placeholder (real
    Stripe wiring comes later), and an explicit Log out action.
    ================================================================ */
-function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubscription }: {
+function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubscription, onDeleteAccount }: {
   userEmail: string | null;
   userState: UserState;
   onSignOut: () => void;
   onUpgrade: () => void;
   onManageSubscription: () => void;
+  onDeleteAccount: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -2405,6 +2469,13 @@ function ProfileMenu({ userEmail, userState, onSignOut, onUpgrade, onManageSubsc
               <X className="w-4 h-4" />
               Log out
             </button>
+            <button
+              onClick={() => { setOpen(false); onDeleteAccount(); }}
+              className="w-full text-left px-4 py-2.5 text-xs text-gray-warm/70 hover:bg-cream hover:text-red-500 transition-colors flex items-center gap-2 border-t border-border-warm"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete account
+            </button>
           </div>
         </>
       )}
@@ -2420,6 +2491,37 @@ function ManageSubscriptionModal({ open, onClose }: { open: boolean; onClose: ()
         <p className="text-gray-warm mb-1">Subscription management is coming soon.</p>
         <p className="text-sm text-gray-warm mb-5">Once billing is wired up, you'll be able to update your plan, payment method, and billing details right here.</p>
         <button onClick={onClose} className="w-full py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Got it</button>
+      </div>
+    </Modal>
+  );
+}
+
+function DeleteAccountModal({ open, onClose, onConfirm, deleting, error }: { open: boolean; onClose: () => void; onConfirm: () => void; deleting: boolean; error: string | null }) {
+  const [confirmText, setConfirmText] = useState("");
+
+  useEffect(() => {
+    if (!open) setConfirmText("");
+  }, [open]);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Delete Account">
+      <div className="py-2">
+        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-500" /></div>
+        <p className="text-center text-gray-warm mb-1">This permanently deletes your account.</p>
+        <p className="text-center text-sm text-gray-warm mb-5">Your linked business, all reviews and AI replies, posts, competitor tracking, and usage history will be permanently removed. This cannot be undone.</p>
+        <label className="text-xs font-medium text-gray-warm block mb-1.5">Type DELETE to confirm</label>
+        <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="DELETE"
+          className="w-full mb-4 px-3 py-2.5 rounded-lg bg-cream border border-border-warm text-sm outline-none focus:border-red-400" />
+        {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white text-charcoal font-medium text-sm hover:bg-cream-dark transition-colors border border-border-warm">Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={confirmText !== "DELETE" || deleting}
+            className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            {deleting ? "Deleting..." : "Delete My Account"}
+          </button>
+        </div>
       </div>
     </Modal>
   );
