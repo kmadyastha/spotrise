@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getRazorpay } from "@/lib/razorpay";
+import { describeError } from "@/lib/error-utils";
 import { NextResponse } from "next/server";
 
 export async function DELETE() {
@@ -14,16 +16,24 @@ export async function DELETE() {
     // to Pro removes the incentive — there's nothing to "reset" that's
     // worth losing a paid plan over. Free users can still request
     // deletion; it just goes through support instead of being instant.
-    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("plan, razorpay_subscription_id").eq("id", user.id).single();
     if (profile?.plan !== "pro") {
       return NextResponse.json({ error: "pro_only" }, { status: 403 });
     }
 
-    // TODO once Stripe billing is live: cancel this user's active Pro
-    // subscription with Stripe FIRST, before deleting any data below —
-    // otherwise they'd keep being billed for an account that no longer
-    // exists. Not needed yet since "Upgrade to Pro" is still a
-    // client-side-only toggle, not a real subscription.
+    // Cancel the real subscription FIRST, before deleting anything —
+    // immediately (not cancel_at_cycle_end), since there's no account
+    // left afterward to keep access alive for. If this fails, stop here
+    // rather than deleting the account and leaving a live subscription
+    // silently billing nobody-knows-who forever.
+    if (profile.razorpay_subscription_id) {
+      try {
+        await getRazorpay().subscriptions.cancel(profile.razorpay_subscription_id, false);
+      } catch (err) {
+        console.error("delete-account: failed to cancel Razorpay subscription:", err);
+        return NextResponse.json({ error: "cancel_failed", details: describeError(err) }, { status: 500 });
+      }
+    }
 
     const admin = createAdminClient();
 

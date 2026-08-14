@@ -156,6 +156,7 @@ export default function SpotRisePage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [confirmingUpgrade, setConfirmingUpgrade] = useState(false);
+  const [upgradeStage, setUpgradeStage] = useState<"confirming" | "enhancing" | "delayed">("confirming");
   // Geo-based pricing: India gets real Razorpay checkout in INR;
   // everywhere else sees $ pricing with a waitlist capture until
   // Stripe (pending invite) or Razorpay's international add-on is live.
@@ -421,23 +422,44 @@ export default function SpotRisePage() {
     });
   };
 
-  // After a successful Stripe Checkout, Stripe redirects back here with
-  // ?checkout=success — but the webhook that actually flips the plan to
-  // "pro" can take a moment to arrive. Poll briefly rather than showing
-  // stale "Free" state right after payment.
+  // After payment, the webhook that actually flips the plan to "pro"
+  // can take a few seconds to arrive — poll rather than showing stale
+  // "Free" state. Once it lands, this also auto-triggers a full
+  // Pro-tier audit refresh (up to 80 reviews) right away, so upgrading
+  // visibly and immediately improves the dashboard instead of silently
+  // flipping a flag that only shows its effect after a separate manual
+  // "Refresh Audit" click.
   const pollForProPlan = useCallback(async (attemptsLeft: number) => {
     try {
       const res = await fetch("/api/my-business");
       const data = await res.json();
-      if (data.plan === "pro" || attemptsLeft <= 0) {
+      if (data.plan === "pro") {
         await loadMySession();
+        if (data.business?.id) {
+          setUpgradeStage("enhancing");
+          try {
+            const refreshRes = await fetch("/api/refresh-audit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ businessId: data.business.id }),
+            });
+            if (refreshRes.ok) await loadMySession();
+          } catch (err) {
+            console.error("post-upgrade refresh-audit failed:", err);
+          }
+        }
         setConfirmingUpgrade(false);
+        setUpgradeStage("confirming");
+        return;
+      }
+      if (attemptsLeft <= 0) {
+        setUpgradeStage("delayed");
         return;
       }
     } catch (err) {
       console.error("pollForProPlan failed:", err);
     }
-    setTimeout(() => pollForProPlan(attemptsLeft - 1), 1500);
+    setTimeout(() => pollForProPlan(attemptsLeft - 1), 2000);
   }, [loadMySession]);
 
   useEffect(() => {
@@ -445,7 +467,8 @@ export default function SpotRisePage() {
     if (params.get("checkout") === "success") {
       window.history.replaceState({}, "", window.location.pathname);
       setConfirmingUpgrade(true);
-      pollForProPlan(6);
+      setUpgradeStage("confirming");
+      pollForProPlan(20);
     }
   }, [pollForProPlan]);
 
@@ -518,6 +541,7 @@ export default function SpotRisePage() {
         console.error("delete-account error:", data);
         setDeleteAccountError(
           data.error === "pro_only" ? "Account deletion is available for Pro accounts. Free accounts can request deletion by emailing support@spotrise.app." :
+          data.error === "cancel_failed" ? "Couldn't cancel your subscription, so your account wasn't deleted (this avoids leaving you billed with no account). Try again, or contact support@spotrise.app." :
           "Something went wrong deleting your account. Try again, or contact support if this keeps happening."
         );
         return;
@@ -576,7 +600,8 @@ export default function SpotRisePage() {
           setShowUpgrade(false);
           setShowCompetitorUpgrade(false);
           setConfirmingUpgrade(true);
-          pollForProPlan(6);
+          setUpgradeStage("confirming");
+          pollForProPlan(20);
         },
         modal: {
           ondismiss: () => setCheckoutLoading(false),
@@ -656,6 +681,11 @@ export default function SpotRisePage() {
     setShowMarketingSite(true);
     setTimeout(() => document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" }), 60);
   };
+
+  const upgradeStageMessage =
+    upgradeStage === "confirming" ? "Confirming your payment..." :
+    upgradeStage === "enhancing" ? "You're Pro! Pulling your full review history now..." :
+    "Still confirming — this is taking longer than usual. Feel free to keep using the app; we'll update this automatically once it lands.";
 
   const handleChangeBusiness = (slotId: number) => {
     const slot = businessSlots.find((s) => s.id === slotId);
@@ -975,8 +1005,24 @@ export default function SpotRisePage() {
     return (
       <div className="min-h-screen bg-cream text-charcoal">
         {confirmingUpgrade && (
-          <div className="fixed top-0 inset-x-0 z-[100] bg-orange text-white text-sm text-center py-2 flex items-center justify-center gap-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />Confirming your upgrade...
+          <div className="fixed top-20 right-4 sm:right-6 z-[100] w-[90vw] max-w-sm rounded-2xl bg-white border-2 border-orange shadow-xl p-5">
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-orange-light flex items-center justify-center shrink-0 ${upgradeStage === "delayed" ? "" : "animate-pulse"}`}>
+                <Sparkles className="w-5 h-5 text-orange" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-serif font-semibold text-charcoal text-sm mb-1">
+                  {upgradeStage === "confirming" ? "Activating your Pro plan" : upgradeStage === "enhancing" ? "You're Pro! 🎉" : "Still on it..."}
+                </p>
+                <p className="text-xs text-gray-warm leading-relaxed">{upgradeStageMessage}</p>
+              </div>
+            </div>
+            <div className="mt-3 h-1 rounded-full bg-cream overflow-hidden">
+              <div className={`h-full bg-orange rounded-full ${upgradeStage === "delayed" ? "w-full" : "w-2/3 animate-pulse"}`} />
+            </div>
+            {upgradeStage === "delayed" && (
+              <button onClick={() => setConfirmingUpgrade(false)} className="mt-3 text-xs text-orange font-medium hover:text-orange-hover underline">Dismiss</button>
+            )}
           </div>
         )}
         {/* Navbar */}
@@ -1009,11 +1055,19 @@ export default function SpotRisePage() {
                       <ChevronRight className="w-3.5 h-3.5 rotate-180" />Back to Dashboard
                     </button>
                   )}
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
-                    {userState === "pro" ? "Pro Plan" : "Free Plan"}
-                  </span>
-                  {userState !== "pro" && (
-                    <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
+                  {confirmingUpgrade ? (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-amber-100 text-amber-700 flex items-center gap-1.5">
+                      <RefreshCw className="w-3 h-3 animate-spin" />Upgrading...
+                    </span>
+                  ) : (
+                    <>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
+                        {userState === "pro" ? "Pro Plan" : "Free Plan"}
+                      </span>
+                      {userState !== "pro" && (
+                        <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
+                      )}
+                    </>
                   )}
                   <ProfileMenu
                     userEmail={userEmail}
@@ -1266,8 +1320,24 @@ export default function SpotRisePage() {
   return (
     <div className="min-h-screen bg-cream text-charcoal">
       {confirmingUpgrade && (
-        <div className="fixed top-0 inset-x-0 z-[100] bg-orange text-white text-sm text-center py-2 flex items-center justify-center gap-2">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" />Confirming your upgrade...
+        <div className="fixed top-20 right-4 sm:right-6 z-[100] w-[90vw] max-w-sm rounded-2xl bg-white border-2 border-orange shadow-xl p-5">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-orange-light flex items-center justify-center shrink-0 ${upgradeStage === "delayed" ? "" : "animate-pulse"}`}>
+              <Sparkles className="w-5 h-5 text-orange" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-serif font-semibold text-charcoal text-sm mb-1">
+                {upgradeStage === "confirming" ? "Activating your Pro plan" : upgradeStage === "enhancing" ? "You're Pro! 🎉" : "Still on it..."}
+              </p>
+              <p className="text-xs text-gray-warm leading-relaxed">{upgradeStageMessage}</p>
+            </div>
+          </div>
+          <div className="mt-3 h-1 rounded-full bg-cream overflow-hidden">
+            <div className={`h-full bg-orange rounded-full ${upgradeStage === "delayed" ? "w-full" : "w-2/3 animate-pulse"}`} />
+          </div>
+          {upgradeStage === "delayed" && (
+            <button onClick={() => setConfirmingUpgrade(false)} className="mt-3 text-xs text-orange font-medium hover:text-orange-hover underline">Dismiss</button>
+          )}
         </div>
       )}
       {/* Navbar */}
@@ -1301,11 +1371,19 @@ export default function SpotRisePage() {
               <button onClick={() => setShowLogin(true)} className="text-sm px-4 py-2 rounded-lg bg-white hover:bg-cream-dark transition-colors">Sign In</button>
             ) : (
               <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
-                  {userState === "pro" ? "Pro Plan" : "Free Plan"}
-                </span>
-                {userState !== "pro" && (
-                  <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
+                {confirmingUpgrade ? (
+                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-amber-100 text-amber-700 flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 animate-spin" />Upgrading...
+                  </span>
+                ) : (
+                  <>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${userState === "pro" ? "bg-amber-100 text-amber-700" : "bg-blue-soft/20 text-blue-soft-dark"}`}>
+                      {userState === "pro" ? "Pro Plan" : "Free Plan"}
+                    </span>
+                    {userState !== "pro" && (
+                      <button onClick={() => setShowUpgrade(true)} className="text-xs px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-hover transition-colors">Upgrade</button>
+                    )}
+                  </>
                 )}
                 <ProfileMenu
                   userEmail={userEmail}

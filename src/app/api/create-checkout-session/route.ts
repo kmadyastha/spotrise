@@ -1,52 +1,40 @@
 import { createClient } from "@/lib/supabase/server";
-import { getStripe } from "@/lib/stripe";
+import { getRazorpay } from "@/lib/razorpay";
+import { describeError } from "@/lib/error-utils";
 import { NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-    const { data: profile } = await supabase.from("profiles").select("plan, stripe_customer_id").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
     if (profile?.plan === "pro") {
       return NextResponse.json({ error: "already_pro" }, { status: 400 });
     }
 
-    // Reuse an existing Stripe customer if this user already has one
-    // (e.g. a past cancellation), rather than creating a duplicate.
-    let customerId = profile?.stripe_customer_id;
-    if (!customerId) {
-      const customer = await getStripe().customers.create({
-        email: user.email,
-        metadata: { supabase_user_id: user.id },
-      });
-      customerId = customer.id;
-      await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
-    }
-
-    const origin = request.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-    const session = await getStripe().checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      // Belt-and-suspenders alongside the customer link — the webhook
-      // primarily matches on customer ID, but having the Supabase user
-      // ID directly on the session too makes checkout.session.completed
-      // resilient even in edge cases where the customer lookup is slow.
-      client_reference_id: user.id,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
-      success_url: `${origin}/?checkout=success`,
-      cancel_url: `${origin}/?checkout=cancelled`,
+    // total_count is required by Razorpay's Subscriptions API — there's
+    // no native "bill indefinitely" option, so 1200 monthly cycles
+    // (100 years) is the standard way to represent an open-ended plan.
+    // The Supabase user ID goes in notes so the webhook can match this
+    // subscription back to the right account without depending on a
+    // pre-created customer record.
+    const subscription = await getRazorpay().subscriptions.create({
+      plan_id: process.env.RAZORPAY_PLAN_ID!,
+      customer_notify: 1,
+      total_count: 1200,
+      notes: { supabase_user_id: user.id },
     });
 
-    if (!session.url) {
-      return NextResponse.json({ error: "no_checkout_url" }, { status: 500 });
-    }
+    await supabase.from("profiles").update({ razorpay_subscription_id: subscription.id }).eq("id", user.id);
 
-    return NextResponse.json({ url: session.url });
+    // key_id (unlike key_secret) is meant to be public — Razorpay's own
+    // Checkout widget requires it client-side. Returning it here avoids
+    // needing a separate NEXT_PUBLIC_ env var duplicating the same value.
+    return NextResponse.json({ subscriptionId: subscription.id, keyId: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
-    console.error("create-checkout-session failed:", err);
-    return NextResponse.json({ error: "unexpected_error", details: String(err) }, { status: 500 });
+    console.error("create-razorpay-subscription failed:", err);
+    return NextResponse.json({ error: "unexpected_error", details: describeError(err) }, { status: 500 });
   }
 }
