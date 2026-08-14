@@ -29,11 +29,10 @@ export async function POST() {
 
     await supabase.from("profiles").update({ razorpay_subscription_id: subscription.id }).eq("id", user.id);
 
-    if (!subscription.short_url) {
-      return NextResponse.json({ error: "no_checkout_url" }, { status: 500 });
-    }
-
-    return NextResponse.json({ url: subscription.short_url });
+    // key_id (unlike key_secret) is meant to be public — Razorpay's own
+    // Checkout widget requires it client-side. Returning it here avoids
+    // needing a separate NEXT_PUBLIC_ env var duplicating the same value.
+    return NextResponse.json({ subscriptionId: subscription.id, keyId: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
     console.error("create-razorpay-subscription failed:", err);
     return NextResponse.json({ error: "unexpected_error", details: describeError(err) }, { status: 500 });

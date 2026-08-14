@@ -408,6 +408,19 @@ export default function SpotRisePage() {
     }
   }, []);
 
+  // Loads Razorpay's Checkout script on demand — only the first time
+  // it's actually needed, and only once even across repeated clicks.
+  const loadRazorpayCheckout = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).Razorpay) { resolve(); return; }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Razorpay checkout"));
+      document.body.appendChild(script);
+    });
+  };
+
   // After a successful Stripe Checkout, Stripe redirects back here with
   // ?checkout=success — but the webhook that actually flips the plan to
   // "pro" can take a moment to arrive. Poll briefly rather than showing
@@ -542,13 +555,43 @@ export default function SpotRisePage() {
           data.error === "already_pro" ? "You're already on Pro." :
           `Something went wrong starting checkout (${data.error ?? "unknown_error"}). ${data.details ? String(data.details).slice(0, 200) : "Try again in a moment."}`
         );
+        setCheckoutLoading(false);
         return;
       }
-      window.location.href = data.url;
+
+      await loadRazorpayCheckout();
+
+      const rzp = new (window as any).Razorpay({
+        key: data.keyId,
+        subscription_id: data.subscriptionId,
+        name: "SpotRise",
+        description: "Pro subscription — ₹699/month",
+        theme: { color: "#D4652A" },
+        handler: () => {
+          // Razorpay confirms success client-side here, but this is only
+          // a UX signal to start checking — the webhook (server-side,
+          // signature-verified) remains the only thing that actually
+          // grants Pro access. This just means the person doesn't have
+          // to manually navigate back and refresh to find out.
+          setShowUpgrade(false);
+          setShowCompetitorUpgrade(false);
+          setConfirmingUpgrade(true);
+          pollForProPlan(6);
+        },
+        modal: {
+          ondismiss: () => setCheckoutLoading(false),
+        },
+      });
+      rzp.on("payment.failed", (resp: any) => {
+        console.error("razorpay payment.failed:", resp);
+        setCheckoutError("Payment failed. Try again, or use a different card.");
+        setCheckoutLoading(false);
+      });
+      rzp.open();
+      setCheckoutLoading(false);
     } catch (err) {
       console.error("create-razorpay-subscription failed:", err);
       setCheckoutError("Something went wrong starting checkout. Try again in a moment.");
-    } finally {
       setCheckoutLoading(false);
     }
   };
@@ -2509,7 +2552,7 @@ function UpgradeModal({ open, onClose, onUpgrade, loading, error, isIndia, waitl
           <>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? "Redirecting to checkout..." : "Upgrade Now — ₹699/mo"}
+              {loading ? "Opening checkout..." : "Upgrade Now — ₹699/mo"}
             </button>
           </>
         ) : waitlistSubmitted ? (
@@ -2851,7 +2894,7 @@ function CompetitorUpgradeModal({ open, onClose, onUpgrade, loading, error, isIn
           <>
             {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
             <button onClick={onUpgrade} disabled={loading} className="w-full py-3 rounded-xl bg-orange text-white font-medium text-sm hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? "Redirecting to checkout..." : "Upgrade to Pro — ₹699/mo"}
+              {loading ? "Opening checkout..." : "Upgrade to Pro — ₹699/mo"}
             </button>
           </>
         ) : (
