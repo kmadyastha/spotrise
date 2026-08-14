@@ -540,7 +540,7 @@ export default function SpotRisePage() {
         console.error("create-razorpay-subscription error:", data);
         setCheckoutError(
           data.error === "already_pro" ? "You're already on Pro." :
-          "Something went wrong starting checkout. Try again in a moment."
+          `Something went wrong starting checkout (${data.error ?? "unknown_error"}). ${data.details ? String(data.details).slice(0, 200) : "Try again in a moment."}`
         );
         return;
       }
@@ -590,7 +590,10 @@ export default function SpotRisePage() {
       const data = await res.json();
       if (!res.ok) {
         console.error("cancel-razorpay-subscription error:", data);
-        setCancelSubError("Something went wrong cancelling your subscription. Try again, or contact support@spotrise.app.");
+        setCancelSubError(
+          data.error === "no_subscription" ? "This account has no real Razorpay subscription on file (likely set to Pro manually for earlier testing) — nothing to cancel." :
+          `Something went wrong cancelling (${data.error ?? "unknown_error"}). ${data.details ? String(data.details).slice(0, 200) : "Try again, or contact support@spotrise.app."}`
+        );
         return;
       }
       setCancelSubSuccess(true);
