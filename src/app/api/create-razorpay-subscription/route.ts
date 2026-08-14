@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRazorpay } from "@/lib/razorpay";
+import { describeError } from "@/lib/error-utils";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -35,6 +36,6 @@ export async function POST() {
     return NextResponse.json({ url: subscription.short_url });
   } catch (err) {
     console.error("create-razorpay-subscription failed:", err);
-    return NextResponse.json({ error: "unexpected_error", details: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "unexpected_error", details: describeError(err) }, { status: 500 });
   }
 }
