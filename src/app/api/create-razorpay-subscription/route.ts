@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { razorpay } from "@/lib/razorpay";
+import { getRazorpay } from "@/lib/razorpay";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -19,7 +19,7 @@ export async function POST() {
     // The Supabase user ID goes in notes so the webhook can match this
     // subscription back to the right account without depending on a
     // pre-created customer record.
-    const subscription = await razorpay.subscriptions.create({
+    const subscription = await getRazorpay().subscriptions.create({
       plan_id: process.env.RAZORPAY_PLAN_ID!,
       customer_notify: 1,
       total_count: 1200,

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { razorpay } from "@/lib/razorpay";
+import { getRazorpay } from "@/lib/razorpay";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -19,7 +19,7 @@ export async function POST() {
     // end of your current billing period"). The plan itself flips back
     // to free later, when Razorpay's subscription.cancelled webhook
     // actually fires at cycle end — not here.
-    await razorpay.subscriptions.cancel(profile.razorpay_subscription_id, true);
+    await getRazorpay().subscriptions.cancel(profile.razorpay_subscription_id, true);
 
     return NextResponse.json({ success: true });
   } catch (err) {
