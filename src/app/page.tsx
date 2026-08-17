@@ -1530,8 +1530,8 @@ export default function SpotRisePage() {
                         <h4 className="font-medium text-sm">{item.title}</h4>
                         <p className="text-sm text-gray-warm mt-1 leading-relaxed">{item.description}</p>
                       </div>
-                      <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-medium">
-                        <TrendingUp className="w-3 h-3" />{item.impact}
+                      <div className="shrink-0 flex items-start gap-1.5 text-xs text-emerald-700 bg-emerald-100 px-2.5 py-1.5 rounded-lg font-medium w-full sm:w-auto sm:max-w-[200px]">
+                        <TrendingUp className="w-3 h-3 shrink-0 mt-0.5" /><span>{item.impact}</span>
                       </div>
                     </div>
                   ))}
