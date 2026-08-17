@@ -57,6 +57,20 @@ export async function POST(request: Request) {
             razorpay_customer_id: subscription.customer_id ?? null,
           })
           .eq("id", userId);
+
+        // is_linked is normally set once, at confirm-business time, to
+        // whatever the user's plan was AT THAT EXACT MOMENT — meaning
+        // anyone who confirms a business while still Free and upgrades
+        // afterward is left with is_linked stuck at false forever,
+        // since nothing else ever revisits it. That silently breaks
+        // refresh-audit (which requires is_linked) and my-business's
+        // whole "does this user have a business" check (same
+        // requirement) — both quietly treating a newly-Pro user as if
+        // they still had no business at all. This is almost certainly
+        // the single most common upgrade path there is, so fix it here,
+        // the one place that's already the sole source of truth for
+        // plan changes.
+        await admin.from("businesses").update({ is_linked: true }).eq("user_id", userId);
         break;
       }
 
